@@ -1,0 +1,18 @@
+#include "general.h"
+
+
+
+class JOPManager
+{
+    private:
+        uint64_t ntsokrnl;
+        uint64_t* gadgetChain;
+
+    public:
+        void pushGadget(std::string gadget);
+        void printChain();
+        void writeChain();
+
+        void SetKernelAddress(uint64_t address);
+
+}
