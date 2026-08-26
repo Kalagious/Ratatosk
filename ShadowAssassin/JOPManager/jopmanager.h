@@ -7,6 +7,9 @@ class JOPManager
     private:
         uint64_t ntsokrnl;
         uint64_t* gadgetChain;
+        void resolveChain();
+        std::vector<std::string> textGadgetChain
+
 
     public:
         void pushGadget(std::string gadget);
