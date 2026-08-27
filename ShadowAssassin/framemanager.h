@@ -1,5 +1,5 @@
 #pragma once
-#include "../general.h"
+#include "general.h"
 #include <functional>
 
 
@@ -32,6 +32,6 @@ public:
 
     uint64_t ReadStoredRegister(std::string regName);
     uint64_t ReadRegister(std::string regName);
-    void WriteRegister(std::string regName, uint64_t value);
+    void     WriteRegister(std::string regName, uint64_t value);
     uint64_t GetFrameAddress() const;
 };

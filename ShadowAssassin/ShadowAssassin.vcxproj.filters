@@ -1,2 +1,29 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" />
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="FrameManager">
+      <UniqueIdentifier>{567c6876-ea79-4bb2-a72d-8ee2baa77dd7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="JOPManager">
+      <UniqueIdentifier>{f72c0122-459d-4519-a230-b649e9cc5d4f}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="FrameManager\framemanager.h">
+      <Filter>FrameManager</Filter>
+    </ClInclude>
+    <ClInclude Include="general.h" />
+    <ClInclude Include="jopmanager.h">
+      <Filter>JOPManager</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="resolver.cpp">
+      <Filter>FrameManager</Filter>
+    </ClCompile>
+    <ClCompile Include="FileName.cpp" />
+    <ClCompile Include="framemanager.cpp">
+      <Filter>FrameManager</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

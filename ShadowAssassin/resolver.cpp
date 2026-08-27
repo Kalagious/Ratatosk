@@ -1,5 +1,9 @@
+#include "framemanager.h"
 
-uint64_t getKtrapFrameRegisterOffset(std::string regName) {
+
+
+
+uint64_t FrameManager::GetKtrapFrameRegisterOffset(std::string regName) {
     // Convert input string to lowercase for case-insensitive lookup
     std::transform(regName.begin(), regName.end(), regName.begin(),
         [](unsigned char c){ return std::tolower(c); });
@@ -59,5 +63,5 @@ uint64_t getKtrapFrameRegisterOffset(std::string regName) {
     }
     
     // Return the maximum possible uint64_t value to indicate "not found"
-    return UINT64_MAX; 
+    return UINT64_MAX;
 }
