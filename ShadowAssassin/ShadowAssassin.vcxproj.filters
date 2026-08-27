@@ -9,21 +9,26 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="FrameManager\framemanager.h">
-      <Filter>FrameManager</Filter>
-    </ClInclude>
     <ClInclude Include="general.h" />
     <ClInclude Include="jopmanager.h">
       <Filter>JOPManager</Filter>
+    </ClInclude>
+    <ClInclude Include="shadowassassin.h" />
+    <ClInclude Include="framemanager.h">
+      <Filter>FrameManager</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="resolver.cpp">
       <Filter>FrameManager</Filter>
     </ClCompile>
-    <ClCompile Include="FileName.cpp" />
     <ClCompile Include="framemanager.cpp">
       <Filter>FrameManager</Filter>
+    </ClCompile>
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="shadowassassin.cpp" />
+    <ClCompile Include="jopmanager.cpp">
+      <Filter>JOPManager</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

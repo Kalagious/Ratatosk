@@ -8,33 +8,32 @@
 class ShadowAssassin
 {
 private:
-    std::function<uint64_t(uint64_t)>       readFn;
-    std::function<void(uint64_t, uint64_t)> writeFn;
+    std::function<void(UINT64*, UINT64, UINT64)> readFn;
+    std::function<void(UINT64, UINT64)>          writeFn;
 
-    uint64_t kernelBase;
-    uint64_t gadgetJmpRax;
-    uint64_t gadgetPopRspRet;
-    uint64_t scratchAddress;
+    UINT64 gadgetJmpRax;
+    UINT64 gadgetPopRspRet;
+    UINT64 scratchAddress;
 
     FrameManager frameManager;
     JOPManager   jopManager;
 
-    uint64_t ResolveKernelExport(const std::string& name);
+    UINT64 ResolveKernelExport(const std::string& name);
 
 public:
     ShadowAssassin();
 
-    void SetReadPrimitive(std::function<uint64_t(uint64_t)> fn);
-    void SetWritePrimitive(std::function<void(uint64_t, uint64_t)> fn);
-    void SetKernelBase(uint64_t base);
-    void SetGadgetJmpRax(uint64_t offset);
-    void SetGadgetPopRspRet(uint64_t offset);
-    void SetScratchAddress(uint64_t addr);
-    void SetTrapFrameOffset(uint64_t offset);
+    void SetReadPrimitive(std::function<void(UINT64*, UINT64, UINT64)> fn);
+    void SetWritePrimitive(std::function<void(UINT64, UINT64)> fn);
+    void SetGadgetJmpRax(UINT64 offset);
+    void SetGadgetPopRspRet(UINT64 offset);
+    void SetScratchAddress(UINT64 addr);
+    void SetTrapFrameOffset(UINT64 offset);
+    void SetEPROCESS(UINT64 ep);
 
     bool Initialize();
 
-    uint64_t CallSyscall(const std::string& name, const std::vector<uint64_t>& params);
+    UINT64 CallSyscall(const std::string& name, const std::vector<UINT64>& params);
 
     FrameManager& GetFrameManager();
     JOPManager&   GetJOPManager();

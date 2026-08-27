@@ -5,8 +5,8 @@
 class JOPManager
 {
     private:
-        uint64_t ntsokrnl;
-        uint64_t* gadgetChain;
+        UINT64 ntsokrnl;
+        UINT64* gadgetChain;
         void resolveChain();
         std::vector<std::string> textGadgetChain;
 
@@ -19,6 +19,6 @@ class JOPManager
         void printChain();
         void writeChain();
 
-        void SetKernelAddress(uint64_t address);
+        void SetKernelAddress(UINT64 address);
 
 };

@@ -1,14 +1,11 @@
 #include "framemanager.h"
 
 
-
-
-uint64_t FrameManager::GetKtrapFrameRegisterOffset(std::string regName) {
-    // Convert input string to lowercase for case-insensitive lookup
+UINT64 FrameManager::GetKtrapFrameRegisterOffset(std::string regName) {
     std::transform(regName.begin(), regName.end(), regName.begin(),
         [](unsigned char c){ return std::tolower(c); });
 
-    static const std::unordered_map<std::string, uint64_t> offsets = {
+    static const std::unordered_map<std::string, UINT64> offsets = {
         // Control / Status Registers
         {"mxcsr", 0x02C},
         {"eflags", 0x178},
@@ -58,10 +55,9 @@ uint64_t FrameManager::GetKtrapFrameRegisterOffset(std::string regName) {
     };
 
     auto it = offsets.find(regName);
-    if (it != offsets.end()) {
+    if (it != offsets.end())
         return it->second;
-    }
-    
-    // Return the maximum possible uint64_t value to indicate "not found"
+
+    DbgLog("[GetKtrapFrameRegisterOffset] FAIL: unknown register '%s'\n", regName.c_str());
     return UINT64_MAX;
 }
