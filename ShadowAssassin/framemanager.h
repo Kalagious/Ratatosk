@@ -2,7 +2,7 @@
 #include "general.h"
 #include "ReadWriteLibrary/VulnerableDriverReadWrite.h"
 #include <functional>
-
+#include "offsets.h"
 
 class FrameManager
 {
@@ -10,7 +10,6 @@ private:
     HANDLE      threadHandle;
     DWORD       threadId;
     UINT64      frameAddress;
-    UINT64      ktrapFrameOffset;
     UINT64      eprocess;
     std::unordered_map<std::string, UINT64> storedRegisters;
 
@@ -26,7 +25,6 @@ public:
 
     void SetReadPrimitive(std::function<void(UINT64*, UINT64, UINT64)> fn);
     void SetWritePrimitive(std::function<void(UINT64, UINT64)> fn);
-    void SetTrapFrameOffset(UINT64 offset);
     void SetEPROCESS(UINT64 ep);
 
     void CreateFrozenThread();

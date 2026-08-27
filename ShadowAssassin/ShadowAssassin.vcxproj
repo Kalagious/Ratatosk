@@ -150,6 +150,7 @@
     <ClInclude Include="framemanager.h" />
     <ClInclude Include="general.h" />
     <ClInclude Include="jopmanager.h" />
+    <ClInclude Include="offsets.h" />
     <ClInclude Include="shadowassassin.h" />
   </ItemGroup>
   <ItemGroup>

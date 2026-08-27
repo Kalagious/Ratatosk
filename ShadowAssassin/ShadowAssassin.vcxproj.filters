@@ -17,6 +17,7 @@
     <ClInclude Include="framemanager.h">
       <Filter>FrameManager</Filter>
     </ClInclude>
+    <ClInclude Include="offsets.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="resolver.cpp">
