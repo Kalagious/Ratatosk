@@ -34,6 +34,7 @@ public:
     bool Initialize();
 
     UINT64 CallSyscall(const std::string& name, const std::vector<UINT64>& params);
+    UINT64 GetModuleBaseAddress(const char* targetName);
 
     FrameManager& GetFrameManager();
     JOPManager&   GetJOPManager();
