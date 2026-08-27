@@ -102,8 +102,11 @@ UINT64 ShadowAssassin::CallSyscall(const std::string& name, const std::vector<UI
     }
     DbgLog("[CallSyscall] frameBase=0x%llX\n", frameBase);
 
-    //frameManager.WriteRegister("rax", funcAddr);
+    frameManager.WriteRegister("rip", 0x1337);
 
+
+    Sleep(100);
+	__debugbreak();
     frameManager.ContinueThread();
     DbgLog("[CallSyscall] Thread continued, returning funcAddr=0x%llX\n", funcAddr);
     return funcAddr;

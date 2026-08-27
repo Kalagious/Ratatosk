@@ -215,12 +215,13 @@ void FrameManager::WriteRegister(std::string regName, UINT64 value) {
         DbgLog("[WriteRegister] FAIL: frameAddress is 0\n");
         return;
     }
-    DbgLog("[WriteRegister] %s @ frameAddress+0x%llX = 0x%llX\n", regName.c_str(), offset, value);
     UINT64 regAddr = frameAddress + offset;
     if (!IsValidKernelAddress(regAddr)) {
         DbgLog("[WriteRegister] FAIL: addr=0x%llX invalid\n", regAddr);
         return;
     }
+    DbgLog("[WriteRegister] %s @ 0x%llX = 0x%llX\n", regName.c_str(), regAddr, value);
+
     writeFn(regAddr, value);
 }
 
