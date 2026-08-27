@@ -16,11 +16,6 @@ public:
 
 	HANDLE hDevice;
 
-
-
-
-
-
 	void EnablePrimitives();
 	void CleanUp();
 

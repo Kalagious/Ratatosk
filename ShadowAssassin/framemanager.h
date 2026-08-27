@@ -27,6 +27,7 @@ public:
     void SetWritePrimitive(std::function<void(UINT64, UINT64)> fn);
     void SetEPROCESS(UINT64 ep);
 
+
     void CreateFrozenThread();
     void StoreFrame();
     void ContinueThread();

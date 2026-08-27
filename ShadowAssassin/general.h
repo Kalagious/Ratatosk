@@ -10,6 +10,7 @@
 #include <vector>
 #include <cstdio>
 #include <cstdarg>
+#include <psapi.h>
 
 
 inline void DbgLog(const char* fmt, ...) {
