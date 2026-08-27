@@ -9,7 +9,11 @@ class FrameManager
 
 
     public:
+        void StoreFrame();
+        uint64_t ReadStoredRegister();
         void WriteRegister(std::string regName, uint64_t value);
         uint64_t ReadRegister(std::string regName);
+
+        void CreateFrozenThread();
 
 }
