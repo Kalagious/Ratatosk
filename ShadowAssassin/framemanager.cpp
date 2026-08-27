@@ -126,8 +126,7 @@ void FrameManager::StoreFrame() {
         return;
     }
     readFn(&frameAddress, trapFrameAddr, sizeof(UINT64));
-    DbgLog("[StoreFrame] kthread=0x%llX ktrapFrameOffset=0x%llX frameAddress=0x%llX\n",
-        kthread, OFF_KTHREAD_TRAP_FRAME, frameAddress);
+
 
     if (!frameAddress) {
         DbgLog("[StoreFrame] WARN: frameAddress is 0, trap frame may not be set yet\n");
@@ -154,8 +153,9 @@ void FrameManager::StoreFrame() {
         UINT64 val = 0;
         readFn(&val, regAddr, sizeof(UINT64));
         storedRegisters[reg] = val;
-        DbgLog("[StoreFrame]   %s @ +0x%llX = 0x%llX\n", reg.c_str(), offset, val);
+        //DbgLog("[StoreFrame]   %s @ +0x%llX = 0x%llX\n", reg.c_str(), offset, val);
     }
+	DbgLog("[StoreFrame] Stored %zu registers from frameAddress=0x%llX\n", storedRegisters.size(), frameAddress);
 }
 
 void FrameManager::ContinueThread() {

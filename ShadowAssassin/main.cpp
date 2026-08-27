@@ -50,8 +50,9 @@ int main() {
 
 	assassin.CallSyscall("NtQuerySystemInformation", { 0, 0, 0, 0 });
 
-    Sleep(100);
-    __debugbreak();
+/*    Sleep(100);
+    __debugbreak();*/
+
     driver.CleanUp();
     DbgLog("[main] Done\n");
     return ok ? 0 : 1;
