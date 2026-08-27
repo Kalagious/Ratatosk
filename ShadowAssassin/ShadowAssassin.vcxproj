@@ -146,7 +146,6 @@
     <ClInclude Include="shadowassassin.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="FileName.cpp" />
     <ClCompile Include="framemanager.cpp" />
     <ClCompile Include="jopmanager.cpp" />
     <ClCompile Include="main.cpp" />
