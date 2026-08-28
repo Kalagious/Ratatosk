@@ -10,6 +10,7 @@ private:
     HANDLE      threadHandle;
     DWORD       threadId;
     UINT64      frameAddress;
+    UINT64      kthreadAddress; // cached from last FindKthread call
     UINT64      eprocess;
     std::unordered_map<std::string, UINT64> storedRegisters;
 
@@ -31,6 +32,8 @@ public:
     void CreateFrozenThread();
     void StoreFrame();
     void ContinueThread();
+
+    UINT64 GetKthreadAddress();  // returns the KTHREAD found during StoreFrame
 
 	void PushStack(UINT64 value);
 

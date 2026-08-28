@@ -5,7 +5,7 @@
 
 
 FrameManager::FrameManager()
-    : threadHandle(nullptr), threadId(0), frameAddress(0), eprocess(0)
+    : threadHandle(nullptr), threadId(0), frameAddress(0), kthreadAddress(0), eprocess(0)
 {}
 
 void FrameManager::SetReadPrimitive(std::function<void(UINT64*, UINT64, UINT64)> fn) {
@@ -71,6 +71,7 @@ UINT64 FrameManager::FindKthread() {
 
         if ((DWORD)tid == threadId) {
             DbgLog("[FindKthread] Found KTHREAD=0x%llX for tid=%lu\n", ethread, threadId);
+            kthreadAddress = ethread;
             return ethread;
         }
 
@@ -242,4 +243,8 @@ void FrameManager::WriteRegister(std::string regName, UINT64 value) {
 
 UINT64 FrameManager::GetFrameAddress() const {
     return frameAddress;
+}
+
+UINT64 FrameManager::GetKthreadAddress() {
+    return kthreadAddress;
 }

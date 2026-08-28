@@ -44,9 +44,12 @@ private:
 
     UINT64 nvidia_base;
     UINT64 ntso_base;
+    UINT64 mmGetSystemRoutineAddr;
+    std::unordered_map<std::string, UINT64> exportCache; // name -> RVA, built at init from disk image
 
     UINT64 GetCurrentEPROCESS(UINT64 eprocess);
     UINT64 ResolveKernelExport(const std::string& name);
+    void   BuildExportCache(const ImageMapping& img);
     UINT64 GetSectionRva(const ImageMapping& img, const char* sectionName);
 
 public:
@@ -61,6 +64,7 @@ public:
     bool Initialize();
 
     UINT64 CallSyscall(const std::string& name, const std::vector<UINT64>& params);
+    UINT64 CallSyscallByAddress(UINT64 syscallAddress, const std::vector<UINT64>& params);
     UINT64 GetModuleBaseAddress(const char* targetName);
 
     FrameManager& GetFrameManager();

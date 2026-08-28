@@ -102,6 +102,7 @@ public:
     UINT64 GetPopRdxValue() const { return rdx; }
     UINT64 GetRspSetupAddr() const { return scratchBase + SCRATCH_STACK_TOP; }
     UINT64 GetReturnValueAddr() const { return scratchBase + SCRATCH_RETURN_VAL; }
+    UINT64 GetScratchBase() const { return scratchBase; }
 
     void PrintLayout() const;
 };
