@@ -91,6 +91,7 @@ public:
     UINT64 GetRax() const { return rax; }
     UINT64 GetRsi() const { return rsi; }
     UINT64 GetRdx() const { return rdx; }
+    UINT64 GetPopRdxValue() const { return rdx; } // push this before firing chain: gadget2 pops it into rdx
 
     void PrintLayout() const;
 };

@@ -174,10 +174,14 @@ UINT64 ShadowAssassin::CallSyscall(const std::string& name, const std::vector<UI
     jopManager.Build(0x0078CB9E, 0x006d066a, 0x00671319, 0x0061cbb5);
     jopManager.SetCallTarget(funcAddr);
     jopManager.SetRestoreRip(frameManager.ReadStoredRegister("rip"));
-
     jopManager.Commit();
 
+	frameManager.WriteRegister("rax", jopManager.GetRax());
+	frameManager.WriteRegister("rsi", jopManager.GetRsi());
+	frameManager.WriteRegister("rdx", jopManager.GetRdx());
 
+	frameManager.PushStack(frameManager.ReadStoredRegister("rsp"));
+	frameManager.PushStack(jopManager.GetPopRdxValue());
 
     Sleep(100);
 	__debugbreak();
