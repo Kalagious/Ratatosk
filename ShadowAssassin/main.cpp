@@ -19,7 +19,7 @@ int main() {
 
     //##################### 0x1337 Usermode Kernel Chudmaxing #####################
 
-	UINT64 outBuf = (UINT64) new UINT64[0x40 / sizeof(UINT64)];
+	UINT64 outBuf = (UINT64) new UINT64[0x8];
 
     UINT64 sysInfoResult = assassin.CallSyscall("ZwQuerySystemInformation", {0, outBuf, 0x40, 0});
 
