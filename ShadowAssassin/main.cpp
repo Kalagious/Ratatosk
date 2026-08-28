@@ -42,23 +42,17 @@ int main() {
 
 
 
-    // --- Test 2: NtQuerySystemInformation (SystemBasicInformation) ---
     UINT64 outBuf = (UINT64)VirtualAlloc(nullptr, 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     if (!outBuf) return 1;
     memset((void*)outBuf, 0, 0x1000);
 
-    UINT64 sysInfoResult = assassin.CallSyscall("NtQuerySystemInformation", {
-        0,       // SystemBasicInformation
-        outBuf,  // user-mode output buffer
-        0x40,   // size
-        0        // ReturnLength ptr (NULL)
-    });
+    UINT64 sysInfoResult = assassin.CallSyscall("ZwQuerySystemInformation", {0, outBuf, 0x40, 0});
 
-    UINT32 pageSize    = *(UINT32*)(outBuf + 0x08); // PageSize (ULONG)
-    UINT8  numCpus     = *(UINT8* )(outBuf + 0x38); // NumberOfProcessors (CCHAR)
-    UINT64 maxUserAddr = *(UINT64*)(outBuf + 0x28); // MaximumUserModeAddress (ULONG_PTR)
+    UINT32 pageSize    = *(UINT32*)(outBuf + 0x08);
+    UINT8  numCpus     = *(UINT8* )(outBuf + 0x38);
+    UINT64 maxUserAddr = *(UINT64*)(outBuf + 0x28);
 
-    printf("[NtQuerySystemInformation] return=0x%llX  PageSize=0x%X  NumCpus=%u  MaxUserAddr=0x%llX\n",
+    printf("[ZwQuerySystemInformation] return=0x%llX  PageSize=0x%X  NumCpus=%u  MaxUserAddr=0x%llX\n",
         sysInfoResult, pageSize, numCpus, maxUserAddr);
     VirtualFree((void*)outBuf, 0, MEM_RELEASE);
 
