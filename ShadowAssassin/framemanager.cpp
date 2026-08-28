@@ -163,6 +163,30 @@ void FrameManager::ContinueThread() {
         ResumeThread(threadHandle);
 }
 
+void FrameManager::PushStack(UINT64 value) {
+    if (!writeFn || !frameAddress) {
+        DbgLog("[PushStack] FAIL: %s\n", !writeFn ? "no writeFn" : "frameAddress is 0");
+        return;
+    }
+
+    UINT64 rsp = ReadRegister("rsp");
+    if (rsp == UINT64_MAX) {
+        DbgLog("[PushStack] FAIL: could not read rsp\n");
+        return;
+    }
+
+    rsp -= sizeof(UINT64);
+
+    if (!IsValidKernelAddress(rsp)) {
+        DbgLog("[PushStack] FAIL: new rsp=0x%llX is not a valid kernel address\n", rsp);
+        return;
+    }
+
+    writeFn(rsp, value);
+    WriteRegister("rsp", rsp);
+    DbgLog("[PushStack] pushed 0x%llX -> rsp=0x%llX\n", value, rsp);
+}
+
 
 UINT64 FrameManager::ReadStoredRegister(std::string regName) {
     std::transform(regName.begin(), regName.end(), regName.begin(),
