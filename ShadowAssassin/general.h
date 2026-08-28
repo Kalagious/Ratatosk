@@ -12,8 +12,19 @@
 #include <cstdarg>
 #include <psapi.h>
 
+inline UINT64 TimeUs() {
+    LARGE_INTEGER freq, cnt;
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&cnt);
+    return (cnt.QuadPart * 1000000ULL) / freq.QuadPart;
+}
 
-
+// Format elapsed microseconds as a decimal ms string e.g. "1.234ms"
+inline std::string FmtMs(UINT64 us) {
+    char buf[32];
+    sprintf_s(buf, sizeof(buf), "%llu.%03llums", us / 1000, us % 1000);
+    return buf;
+}
 
 inline void DbgLog(const char* fmt, ...) {
     va_list args;
@@ -22,7 +33,6 @@ inline void DbgLog(const char* fmt, ...) {
     va_end(args);
     fflush(stdout);
 }
-
 
 static bool IsValidKernelAddress(UINT64 addr) {
     return addr >= 0xFFFF800000000000ULL && addr <= 0xFFFFFFFFFFFFFFF0ULL;
