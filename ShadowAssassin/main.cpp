@@ -45,8 +45,7 @@ int main() {
 
     assassin.SetEPROCESS(eprocess);
 
-    bool ok = assassin.Initialize();
-    DbgLog("[main] Initialize() = %s\n", ok ? "OK" : "FAIL");
+    assassin.Initialize();
 
 
 
@@ -56,12 +55,10 @@ int main() {
 
 
 
-
-
 /*    Sleep(100);
     __debugbreak();*/
 
     driver.CleanUp();
     DbgLog("[main] Done\n");
-    return ok ? 0 : 1;
+    return 0;
 }
