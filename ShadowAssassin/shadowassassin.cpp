@@ -419,7 +419,7 @@ UINT64 ShadowAssassin::CallSyscall(const std::string& name, const std::vector<UI
     writeFn(newRsp + 0x30, jopManager.GetRdiForJmp());
 
     frameManager.WriteRegister("rsp", newRsp + 0x30);
-    DbgLog("[CallSyscall] firing — rsp=0x%llX params=%llu\n", newRsp + 0x30, params.size());
+    DbgLog("[CallSyscall] firing  rsp=0x%llX params=%llu\n", newRsp + 0x30, params.size());
 
     // DEBUG: Verify trap frame has parameters before firing
     UINT64 check_rcx = frameManager.ReadRegister("rcx");
