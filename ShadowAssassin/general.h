@@ -33,11 +33,17 @@ inline void DbgLog(const char* fmt, ...) {
     va_end(args);
     fflush(stdout);
 
-    char buf[1024];
-    va_start(args, fmt);
-    vsnprintf_s(buf, sizeof(buf), _TRUNCATE, fmt, args);
-    va_end(args);
-    OutputDebugStringA(buf);
+    // ntdll!DbgPrint routes through NtDebugPrint — visible in kernel debugger output
+    using FnDbgPrint = ULONG(NTAPI*)(PCSTR, ...);
+    static FnDbgPrint fnDbgPrint = (FnDbgPrint)GetProcAddress(GetModuleHandleA("ntdll.dll"), "DbgPrint");
+
+    if (fnDbgPrint) {
+        char buf[1024];
+        va_start(args, fmt);
+        vsnprintf_s(buf, sizeof(buf), _TRUNCATE, fmt, args);
+        va_end(args);
+        fnDbgPrint("%s", buf);
+    }
 }
 
 static bool IsValidKernelAddress(UINT64 addr) {
