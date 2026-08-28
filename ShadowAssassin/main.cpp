@@ -44,10 +44,7 @@ int main() {
     }
 
     assassin.SetEPROCESS(eprocess);
-
     assassin.Initialize();
-
-
 
 
 	assassin.CallSyscall("NtQuerySystemInformation", { 0, 0, 0, 0 });

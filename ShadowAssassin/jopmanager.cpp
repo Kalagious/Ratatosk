@@ -144,11 +144,9 @@ void JOPManager::Commit() {
     if (!scratchBase) { DbgLog("[JOP::Commit] FAIL: scratchBase not set\n"); return; }
     if (!writeFn)     { DbgLog("[JOP::Commit] FAIL: no write primitive\n"); return; }
     for (const auto& s : slots) {
-        DbgLog("[JOP::Commit] %-35s  addr=0x%llX  val=0x%llX\n",
-            s.name, s.addr, s.value);
         writeFn(s.addr, s.value);
     }
-    DbgLog("[JOP::Commit] Done — %zu slots written\n", slots.size());
+    DbgLog("[JOP::Commit] %zu slots written, scratchBase=0x%llX\n", slots.size(), scratchBase);
 }
 
 void JOPManager::PrintLayout() const {

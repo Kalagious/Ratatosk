@@ -72,8 +72,6 @@ UINT64 FrameManager::FindKthread() {
         UINT64 tid = 0;
         readFn(&tid, ethread + OFF_CID_UNIQUE_THREAD, sizeof(UINT64));
 
-        DbgLog("[FindKthread] [%d] ETHREAD=0x%llX TID=%llu\n", i, ethread, tid);
-
         if ((DWORD)tid == threadId) {
             DbgLog("[FindKthread] Found KTHREAD=0x%llX for tid=%lu\n", ethread, threadId);
             return ethread;
@@ -153,9 +151,8 @@ void FrameManager::StoreFrame() {
         UINT64 val = 0;
         readFn(&val, regAddr, sizeof(UINT64));
         storedRegisters[reg] = val;
-        //DbgLog("[StoreFrame]   %s @ +0x%llX = 0x%llX\n", reg.c_str(), offset, val);
     }
-	DbgLog("[StoreFrame] Stored %zu registers from frameAddress=0x%llX\n", storedRegisters.size(), frameAddress);
+	DbgLog("[StoreFrame] captured %zu registers from frame=0x%llX\n", storedRegisters.size(), frameAddress);
 }
 
 void FrameManager::ContinueThread() {
@@ -221,7 +218,6 @@ UINT64 FrameManager::ReadRegister(std::string regName) {
     }
     UINT64 val = 0;
     readFn(&val, regAddr, sizeof(UINT64));
-    DbgLog("[ReadRegister] %s @ frameAddress+0x%llX = 0x%llX\n", regName.c_str(), offset, val);
     return val;
 }
 
@@ -244,8 +240,6 @@ void FrameManager::WriteRegister(std::string regName, UINT64 value) {
         DbgLog("[WriteRegister] FAIL: addr=0x%llX invalid\n", regAddr);
         return;
     }
-    DbgLog("[WriteRegister] %s @ 0x%llX = 0x%llX\n", regName.c_str(), regAddr, value);
-
     writeFn(regAddr, value);
 }
 

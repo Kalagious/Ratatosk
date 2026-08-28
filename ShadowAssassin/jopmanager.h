@@ -48,6 +48,8 @@ Stack layout (RSP = newRsp+0x38, function_entry_RSP = newRsp+0x30):
 #define SCRATCH_NEW_RAX         0xC0
 #define SCRATCH_G3_CONT         0x280   // 0xC0 + 0x1C0
 #define SCRATCH_G4_CONT         0xE8    // 0xC0 + 0x28
+// gadget3 saves rax (function return value) to [rdx+0x3E0] = [GetRdx()+0x3E0] = scratchBase+0x2F0
+#define SCRATCH_RETURN_VAL      0x2F0
 #define SCRATCH_POP_RDX         0xF0    // gadget1 call pushes here; gadget2 pops rdx
 #define SCRATCH_ALLOC_START     0x100
 
@@ -99,6 +101,7 @@ public:
     UINT64 GetRip() const { return nvidiaBase + setupOff; }
     UINT64 GetPopRdxValue() const { return rdx; }
     UINT64 GetRspSetupAddr() const { return scratchBase + SCRATCH_STACK_TOP; }
+    UINT64 GetReturnValueAddr() const { return scratchBase + SCRATCH_RETURN_VAL; }
 
     void PrintLayout() const;
 };

