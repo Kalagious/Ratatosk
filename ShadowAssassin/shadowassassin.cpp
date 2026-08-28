@@ -403,10 +403,11 @@ UINT64 ShadowAssassin::CallSyscall(const std::string& name, const std::vector<UI
 
 	frameManager.WriteRegister("rax", jopManager.GetRax());
 	frameManager.WriteRegister("rsi", jopManager.GetRsi());
-	frameManager.WriteRegister("rdx", jopManager.GetRdx());
-
-	frameManager.PushStack(frameManager.ReadStoredRegister("rsp"));
-	frameManager.PushStack(jopManager.GetPopRdxValue());
+	// Save original RSP so gadget4's pop rsp restores it, then redirect RSP to scratch
+	UINT64 originalRsp = frameManager.ReadStoredRegister("rsp");
+	jopManager.SetOriginalRsp(originalRsp);
+	DbgLog("[CallSyscall] originalRsp=0x%llX -> restored by gadget4 pop rsp\n", originalRsp);
+	frameManager.WriteRegister("rsp", jopManager.GetRspSetupAddr());
 
     UINT64 current_rip = frameManager.ReadRegister("rip");
     printf("[CallSyscall] Current RIP (set breakpoint here) %llx \n", current_rip);

