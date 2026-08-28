@@ -18,6 +18,8 @@ private:
     FrameManager frameManager;
     JOPManager   jopManager;
 
+    UINT64 nvidia_base;
+    UINT64 ntso_base;
 
     UINT64 GetCurrentEPROCESS(UINT64 eprocess);
     UINT64 ResolveKernelExport(const std::string& name);
