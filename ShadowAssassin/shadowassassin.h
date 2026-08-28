@@ -5,6 +5,30 @@
 #include "jopmanager.h"
 #include "offsets.h"
 
+struct ImageMapping {
+    HANDLE hFile;
+    HANDLE hMap;
+    LPVOID view;
+
+    ImageMapping() : hFile(INVALID_HANDLE_VALUE), hMap(nullptr), view(nullptr) {}
+
+    bool Open(const wchar_t* path) {
+        hFile = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, nullptr,
+                            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (hFile == INVALID_HANDLE_VALUE) return false;
+        hMap = CreateFileMappingW(hFile, nullptr, PAGE_READONLY, 0, 0, nullptr);
+        if (!hMap) { CloseHandle(hFile); return false; }
+        view = MapViewOfFile(hMap, FILE_MAP_READ, 0, 0, 0);
+        if (!view) { CloseHandle(hMap); CloseHandle(hFile); return false; }
+        return true;
+    }
+
+    void Close() {
+        if (view)  { UnmapViewOfFile(view); view  = nullptr; }
+        if (hMap)  { CloseHandle(hMap);     hMap  = nullptr; }
+        if (hFile != INVALID_HANDLE_VALUE) { CloseHandle(hFile); hFile = INVALID_HANDLE_VALUE; }
+    }
+};
 
 class ShadowAssassin
 {
@@ -13,7 +37,7 @@ private:
     std::function<void(UINT64, UINT64)>          writeFn;
 
     UINT64 scratchAddress;
-	UINT64 EPROCESS;
+    UINT64 EPROCESS;
 
     FrameManager frameManager;
     JOPManager   jopManager;
@@ -24,7 +48,7 @@ private:
     UINT64 GetCurrentEPROCESS(UINT64 eprocess);
     UINT64 ResolveKernelExport(const std::string& name);
     UINT64 GetWritableKusd();
-    UINT64 GetSectionRva(const char* sectionName); // walks ntso PE headers
+    UINT64 GetSectionRva(const ImageMapping& img, const char* sectionName);
 
 public:
     ShadowAssassin();
