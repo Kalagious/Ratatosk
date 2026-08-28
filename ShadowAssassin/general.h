@@ -32,6 +32,12 @@ inline void DbgLog(const char* fmt, ...) {
     vprintf(fmt, args);
     va_end(args);
     fflush(stdout);
+
+    char buf[1024];
+    va_start(args, fmt);
+    vsnprintf_s(buf, sizeof(buf), _TRUNCATE, fmt, args);
+    va_end(args);
+    OutputDebugStringA(buf);
 }
 
 static bool IsValidKernelAddress(UINT64 addr) {
