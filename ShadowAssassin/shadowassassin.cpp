@@ -183,6 +183,9 @@ UINT64 ShadowAssassin::CallSyscall(const std::string& name, const std::vector<UI
 	frameManager.PushStack(frameManager.ReadStoredRegister("rsp"));
 	frameManager.PushStack(jopManager.GetPopRdxValue());
 
+    UINT64 current_rip = frameManager.ReadRegister("rip");
+    printf("[CallSyscall] Current RIP (set breakpoint here) %llx \n", current_rip);
+
     Sleep(100);
 	__debugbreak();
     frameManager.ContinueThread();
