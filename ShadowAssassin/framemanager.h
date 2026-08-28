@@ -32,6 +32,8 @@ public:
     void StoreFrame();
     void ContinueThread();
 
+	void PushStack(UINT64 value);
+
     UINT64 ReadStoredRegister(std::string regName);
     UINT64 ReadRegister(std::string regName);
     void   WriteRegister(std::string regName, UINT64 value);
