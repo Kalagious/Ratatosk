@@ -27,33 +27,40 @@ int main() {
     driver.EnablePrimitives();
 
     if (!driver.primitivesEnabled) {
-        DbgLog("[main] FAIL: primitives not enabled — driver may not be loaded\n");
+        DbgLog("[main] FAIL: primitives not enabled\n");
         return 1;
     }
-    DbgLog("[main] Primitives enabled\n");
 
     assassin.SetReadPrimitive([&](UINT64* dst, UINT64 addr, UINT64 size) { driver.Read(dst, addr, size); });
     assassin.SetWritePrimitive([&](UINT64 addr, UINT64 data) { driver.Write(addr, data); });
 
     UINT64 eprocess = assassin.Get_System_EPROCESS();
-
-    if (!eprocess) {
-        DbgLog("[main] FAIL: GetEPROCESS returned 0\n");
-        driver.CleanUp();
-        return 1;
-    }
+    if (!eprocess) { driver.CleanUp(); return 1; }
 
     assassin.SetEPROCESS(eprocess);
-    assassin.Initialize();
-
-
-	assassin.CallSyscall("NtQuerySystemInformation", { 0, 0, 0, 0 });
+    if (!assassin.Initialize()) { driver.CleanUp(); return 1; }
 
 
 
+    // --- Test 2: NtQuerySystemInformation (SystemBasicInformation) ---
+    UINT64 outBuf = (UINT64)VirtualAlloc(nullptr, 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    if (!outBuf) return 1;
+    memset((void*)outBuf, 0, 0x1000);
 
-/*    Sleep(100);
-    __debugbreak();*/
+    UINT64 sysInfoResult = assassin.CallSyscall("NtQuerySystemInformation", {
+        0,       // SystemBasicInformation
+        outBuf,  // user-mode output buffer
+        0x40,   // size
+        0        // ReturnLength ptr (NULL)
+    });
+
+    UINT32 pageSize    = *(UINT32*)(outBuf + 0x08); // PageSize (ULONG)
+    UINT8  numCpus     = *(UINT8* )(outBuf + 0x38); // NumberOfProcessors (CCHAR)
+    UINT64 maxUserAddr = *(UINT64*)(outBuf + 0x28); // MaximumUserModeAddress (ULONG_PTR)
+
+    printf("[NtQuerySystemInformation] return=0x%llX  PageSize=0x%X  NumCpus=%u  MaxUserAddr=0x%llX\n",
+        sysInfoResult, pageSize, numCpus, maxUserAddr);
+    VirtualFree((void*)outBuf, 0, MEM_RELEASE);
 
     driver.CleanUp();
     DbgLog("[main] Done\n");

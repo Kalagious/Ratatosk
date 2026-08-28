@@ -385,6 +385,7 @@ UINT64 ShadowAssassin::CallSyscall(const std::string& name, const std::vector<UI
     }
     DbgLog("[CallSyscall] %s -> 0x%llX\n", name.c_str(), funcAddr);
 
+
     frameManager.CreateFrozenThread();
 
     UINT64 frameBase = frameManager.GetFrameAddress();
@@ -420,12 +421,26 @@ UINT64 ShadowAssassin::CallSyscall(const std::string& name, const std::vector<UI
     frameManager.WriteRegister("rsp", newRsp + 0x30);
     DbgLog("[CallSyscall] firing — rsp=0x%llX params=%llu\n", newRsp + 0x30, params.size());
 
+    // DEBUG: Verify trap frame has parameters before firing
+    UINT64 check_rcx = frameManager.ReadRegister("rcx");
+    UINT64 check_rdx = frameManager.ReadRegister("rdx");
+    UINT64 check_r8  = frameManager.ReadRegister("r8");
+    UINT64 check_r9  = frameManager.ReadRegister("r9");
+    DbgLog("[CallSyscall] trap frame: rcx=0x%llX rdx=0x%llX r8=0x%llX r9=0x%llX\n",
+        check_rcx, check_rdx, check_r8, check_r9);
+
+	DbgLog("[CallSyscall] setting rip to 0x%llX\n", jopManager.GetRip());
+    //Sleep(100);
+	//__debugbreak();
+
     frameManager.ContinueThread();
 
     // Wait for chain to complete, then read return value from scratch
-    Sleep(200);
+    Sleep(10);
     UINT64 retVal = 0;
+
     readFn(&retVal, jopManager.GetReturnValueAddr(), sizeof(UINT64));
+
     DbgLog("[CallSyscall] %s returned 0x%llX\n", name.c_str(), retVal);
     return retVal;
 }
