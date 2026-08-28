@@ -2,9 +2,6 @@
 #include "offsets.h"
 
 
-static bool IsValidKernelAddress(UINT64 addr) {
-    return addr >= 0xFFFF800000000000ULL && addr <= 0xFFFFFFFFFFFFFFF0ULL;
-}
 
 
 FrameManager::FrameManager()

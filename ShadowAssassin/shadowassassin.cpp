@@ -46,9 +46,7 @@ UINT64 ShadowAssassin::Get_System_EPROCESS() {
 }
 
 
-void ShadowAssassin::SetEPROCESS(UINT64 ep) {
-    EPROCESS = ep;
-}
+
 
 FrameManager& ShadowAssassin::GetFrameManager() { return frameManager; }
 JOPManager&   ShadowAssassin::GetJOPManager()   { return jopManager;   }
@@ -60,6 +58,8 @@ bool ShadowAssassin::Initialize() {
             (bool)readFn, (bool)writeFn);
         return false;
     }
+
+	EPROCESS = Get_System_EPROCESS();
 
     if (!EPROCESS) {
         DbgLog("[ShadowAssassin::Initialize] FAIL: EPROCESS not set\n");
@@ -76,10 +76,10 @@ bool ShadowAssassin::Initialize() {
             ntso_base = (UINT64)drivers[0];
     }
     if (!ntso_base) {
-        DbgLog("[Initialize] FAIL: could not resolve ntoskrnl base\n");
+        DbgLog("[ShadowAssassin::Initialize] FAIL: could not resolve ntoskrnl base\n");
         return false;
     }
-    DbgLog("[Initialize] ntso_base=0x%llX\n", ntso_base);
+    DbgLog("[ShadowAssassin::Initialize] ntso_base=0x%llX\n", ntso_base);
 
     jopManager.SetWritePrimitive(writeFn);
     jopManager.SetNvidiaBase(nvidia_base);
@@ -93,12 +93,12 @@ bool ShadowAssassin::Initialize() {
         wchar_t path[MAX_PATH];
         swprintf_s(path, L"%s\\%s", sysDir, ntosNames[i]);
         if (img.Open(path)) {
-            DbgLog("[Initialize] Mapped %ls\n", path);
+            DbgLog("[ShadowAssassin::Initialize] Mapped %ls\n", path);
             break;
         }
     }
     if (!img.view) {
-        DbgLog("[Initialize] FAIL: could not map kernel image from disk\n");
+        DbgLog("[ShadowAssassin::Initialize] FAIL: could not map kernel image from disk\n");
         return false;
     }
 
@@ -106,12 +106,12 @@ bool ShadowAssassin::Initialize() {
     img.Close();
 
     if (!dataSectionRva) {
-        DbgLog("[Initialize] FAIL: .data section not found in ntoskrnl image\n");
+        DbgLog("[ShadowAssassin::Initialize] FAIL: .data section not found in ntoskrnl image\n");
         return false;
     }
 
     UINT64 scratch = ntso_base + dataSectionRva + 0x80000;
-    DbgLog("[Initialize] JOP scratch=0x%llX (ntso .data RVA=0x%llX + 0x80000)\n",
+    DbgLog("[ShadowAssassin::Initialize] JOP scratch=0x%llX (ntso .data RVA=0x%llX + 0x80000)\n",
         scratch, dataSectionRva);
     jopManager.SetScratchBase(scratch);
 
@@ -129,11 +129,11 @@ bool ShadowAssassin::Initialize() {
     nvidia_base = GetModuleBaseAddress("nvlddmkm.sys");
     ntso_base = GetModuleBaseAddress("ntoskrnl.exe");
 
-    DbgLog("[CallSyscall] nvidia base: %llx. ntso base: %llx\n", nvidia_base, ntso_base);
+    DbgLog("[ShadowAssassin::Initialize] nvidia base: %llx. ntso base: %llx\n", nvidia_base, ntso_base);
 
     if (nvidia_base == 0) {
-        DbgLog("[CallSyscall] Nvidia Driver not loaded! Load it! Press enter to continue anyways or cntrl c to stop.\n ");
-        getchar();
+        DbgLog("[ShadowAssassin::Initialize] Nvidia Driver not loaded! Load it!\n ");
+        return false;
     }
 
 	jopManager.SetNvidiaBase(nvidia_base);
