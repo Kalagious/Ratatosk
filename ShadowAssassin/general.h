@@ -33,16 +33,18 @@ inline void DbgLog(const char* fmt, ...) {
     va_end(args);
     fflush(stdout);
 
-    // ntdll!DbgPrint routes through NtDebugPrint — visible in kernel debugger output
-    using FnDbgPrint = ULONG(NTAPI*)(PCSTR, ...);
-    static FnDbgPrint fnDbgPrint = (FnDbgPrint)GetProcAddress(GetModuleHandleA("ntdll.dll"), "DbgPrint");
+    // Use DbgPrintEx with DPFLTR_IHVDRIVER_ID (112) + DPFLTR_ERROR_LEVEL (0) —
+    // same component/level as the driver, so the KD filter won't suppress it.
+    using FnDbgPrintEx = ULONG(NTAPI*)(ULONG, ULONG, PCSTR, ...);
+    static FnDbgPrintEx fnDbgPrintEx = (FnDbgPrintEx)GetProcAddress(
+        GetModuleHandleA("ntdll.dll"), "DbgPrintEx");
 
-    if (fnDbgPrint) {
+    if (fnDbgPrintEx) {
         char buf[1024];
         va_start(args, fmt);
         vsnprintf_s(buf, sizeof(buf), _TRUNCATE, fmt, args);
         va_end(args);
-        fnDbgPrint("%s", buf);
+        fnDbgPrintEx(112 /*DPFLTR_IHVDRIVER_ID*/, 0 /*DPFLTR_ERROR_LEVEL*/, "%s", buf);
     }
 }
 
