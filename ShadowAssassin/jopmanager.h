@@ -82,6 +82,7 @@ public:
 
     void SetWritePrimitive(std::function<void(UINT64, UINT64)> fn);
     void SetNvidiaBase(UINT64 base);
+    void SetScratchBase(UINT64 base); // override default KUSD+0xa80 with writable KUSD from MmWriteableSharedUserData
 
     void Build(UINT64 g1Off, UINT64 g2Off, UINT64 g3Off, UINT64 g4Off);
     void Commit();

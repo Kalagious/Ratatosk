@@ -23,6 +23,8 @@ private:
 
     UINT64 GetCurrentEPROCESS(UINT64 eprocess);
     UINT64 ResolveKernelExport(const std::string& name);
+    UINT64 GetWritableKusd();
+    UINT64 GetSectionRva(const char* sectionName); // walks ntso PE headers
 
 public:
     ShadowAssassin();
