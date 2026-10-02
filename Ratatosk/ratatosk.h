@@ -30,7 +30,7 @@ struct ImageMapping {
     }
 };
 
-class ShadowAssassin
+class Ratatosk
 {
 private:
     std::function<void(UINT64*, UINT64, UINT64)> readFn;
@@ -53,7 +53,7 @@ private:
     UINT64 GetSectionRva(const ImageMapping& img, const char* sectionName);
 
 public:
-    ShadowAssassin();
+    Ratatosk();
 
     void SetReadPrimitive(std::function<void(UINT64*, UINT64, UINT64)> fn);
     void SetWritePrimitive(std::function<void(UINT64, UINT64)> fn);
@@ -63,8 +63,8 @@ public:
 
     bool Initialize();
 
-    UINT64 CallSyscall(const std::string& name, const std::vector<UINT64>& params);
-    UINT64 CallSyscallByAddress(UINT64 syscallAddress, const std::vector<UINT64>& params);
+    UINT64 CallKFunc(const std::string& name, const std::vector<UINT64>& params);
+    UINT64 CallKFuncByAddress(UINT64 funcAddr, const std::vector<UINT64>& params);
     UINT64 GetModuleBaseAddress(const char* targetName);
 
     FrameManager& GetFrameManager();

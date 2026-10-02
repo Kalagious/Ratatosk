@@ -13,7 +13,7 @@
     <ClInclude Include="jopmanager.h">
       <Filter>JOPManager</Filter>
     </ClInclude>
-    <ClInclude Include="shadowassassin.h" />
+    <ClInclude Include="ratatosk.h" />
     <ClInclude Include="framemanager.h">
       <Filter>FrameManager</Filter>
     </ClInclude>
@@ -27,7 +27,7 @@
       <Filter>FrameManager</Filter>
     </ClCompile>
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="shadowassassin.cpp" />
+    <ClCompile Include="ratatosk.cpp" />
     <ClCompile Include="jopmanager.cpp">
       <Filter>JOPManager</Filter>
     </ClCompile>

@@ -3,5 +3,5 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="ShadowAssassin/ShadowAssassin.vcxproj" Id="5ef2a5fa-6941-438a-a604-767b8bdfe183" />
+  <Project Path="Ratatosk/Ratatosk.vcxproj" Id="5ef2a5fa-6941-438a-a604-767b8bdfe183" />
 </Solution>

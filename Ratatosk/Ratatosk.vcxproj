@@ -22,7 +22,7 @@
     <VCProjectVersion>18.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
     <ProjectGuid>{5ef2a5fa-6941-438a-a604-767b8bdfe183}</ProjectGuid>
-    <RootNamespace>ShadowAssassin</RootNamespace>
+    <RootNamespace>Ratatosk</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -151,14 +151,14 @@
     <ClInclude Include="general.h" />
     <ClInclude Include="jopmanager.h" />
     <ClInclude Include="offsets.h" />
-    <ClInclude Include="shadowassassin.h" />
+    <ClInclude Include="ratatosk.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="framemanager.cpp" />
     <ClCompile Include="jopmanager.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="resolver.cpp" />
-    <ClCompile Include="shadowassassin.cpp" />
+    <ClCompile Include="ratatosk.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
